@@ -1,5 +1,8 @@
 #!/bin/sh
 # Runs under greetd as the _greetd user: the profile picker, full screen in the cage kiosk compositor.
+# Blank console, no cursor; messages go to a log instead of the screen.
+printf '\033[2J\033[H\033[?25l'
+exec >>"${XDG_RUNTIME_DIR:-/tmp}/blidos-greeter.log" 2>&1
 . /usr/lib/blidos/gpu-env
 /usr/lib/blidos/gamepad --always &  # controllers work in the profile picker too
 pad=$!

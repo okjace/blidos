@@ -1,6 +1,9 @@
 #!/bin/sh
 # A profile's session: TV mode (sway with the BlidOS home screen and Android) or Desktop mode
 # (KDE Plasma). Switching between them restarts the session here, without the profile picker.
+# Blank console, no cursor; messages go to a log instead of the screen.
+printf '\033[2J\033[H\033[?25l'
+exec >>"${XDG_RUNTIME_DIR:-/tmp}/blidos-session.log" 2>&1
 . /usr/lib/blidos/gpu-env
 export XDG_SESSION_TYPE=wayland
 export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"

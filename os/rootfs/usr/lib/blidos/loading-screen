@@ -1,0 +1,44 @@
+#!/usr/bin/python3
+"""A full-screen BlidOS loading screen, for example while Desktop mode closes on the way to TV mode.
+
+usage: loading-screen "Switching to TV mode…"   (it stays until it's closed or its session ends)
+"""
+import sys
+
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlComponent
+from PySide6.QtQuick import QQuickView
+
+QML = b"""
+import QtQuick
+Rectangle {
+    gradient: Gradient { GradientStop { position: 0; color: "#16203A" } GradientStop { position: 1; color: "#05070D" } }
+    Column {
+        anchors.centerIn: parent
+        spacing: 20
+        Image {
+            anchors.horizontalCenter: parent.horizontalCenter
+            source: "file:///usr/lib/blidos/blidos/qml/BlidOS/icons/logo.svg"
+            width: 120; height: 120; sourceSize.width: 120
+            RotationAnimation on rotation { from: 0; to: 360; duration: 2400; loops: Animation.Infinite }
+        }
+        Text { anchors.horizontalCenter: parent.horizontalCenter; text: message; color: "white"; font.pixelSize: 36; font.bold: true; font.family: "Noto Sans" }
+        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "This takes a few seconds"; color: "#B3FFFFFF"; font.pixelSize: 22; font.family: "Noto Sans" }
+    }
+}
+"""
+
+app = QGuiApplication(sys.argv)
+app.setDesktopFileName("blidos-loading")
+view = QQuickView()
+view.setTitle("BlidOS")
+view.setResizeMode(QQuickView.SizeRootObjectToView)
+view.rootContext().setContextProperty("message", sys.argv[1] if len(sys.argv) > 1 else "Loading…")
+view.setColor("#05070D")
+component = QQmlComponent(view.engine())
+component.setData(QML, QUrl())
+item = component.create(view.rootContext())
+view.setContent(QUrl(), component, item)
+view.showFullScreen()
+sys.exit(app.exec())

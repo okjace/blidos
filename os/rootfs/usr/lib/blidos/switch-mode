@@ -47,6 +47,10 @@ def switch(mode):
         # Plasma closes its apps (so they can save), but outside its own login screen its session
         # manager then waits forever. A helper outside Plasma finishes the job; the session script
         # then starts TV mode.
+        # Cover the desktop while it closes, so it's clear something is happening.
+        subprocess.Popen(["/usr/lib/blidos/loading-screen", "Switching to TV mode…"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(1)
         subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "/usr/lib/blidos/switch-mode",
                         "finish-desktop"], capture_output=True)
         subprocess.run(["dbus-send", "--session", "--type=method_call", "--dest=org.kde.Shutdown",

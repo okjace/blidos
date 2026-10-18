@@ -15,6 +15,7 @@ FocusScope {
         anchors.fill: parent
         radius: height / 2
         color: button.primary ? Theme.accent : Theme.surfaceHi
+        Behavior on color { ColorAnimation { duration: 140 } }
         border.width: button.activeFocus ? Theme.px(3) : 0
         border.color: "white"
         Text {

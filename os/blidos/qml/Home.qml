@@ -17,6 +17,9 @@ FocusScope {
             || (a.source === "flatpak-user" && may("store"))  // their own App Store apps
     }
     property string connection: ""
+    // Tiles rise in when you sign in; later refreshes (every 20 seconds) just update them.
+    property bool entered: false
+    Timer { running: true; interval: 2500; onTriggered: home.entered = true }
     // A new install downloads Android first (a few minutes, once).
     property string setupLabel: "Android is starting"
     property string setupDetail: "Apps appear in a moment"
@@ -189,6 +192,7 @@ FocusScope {
                 iconSource: model.kind === "play" ? Theme.icon("play") : model.kind === "store" ? Theme.icon("store") : (model.icon ? "" : Theme.icon("apps"))
                 dimmed: model.kind === "wait"
                 focus: ListView.isCurrentItem
+                Entrance { enabled: !home.entered; delay: 60 * Math.min(index, 8) }
                 onActiveFocusChanged: if (activeFocus) appsList.currentIndex = index
                 onActivated: home.launch(model)
             }
@@ -217,6 +221,7 @@ FocusScope {
             model: settingsModel
             keyNavigationEnabled: true
             delegate: Tile {
+                Entrance { enabled: !home.entered; delay: 200 + 60 * index }
                 required property var model
                 required property int index
                 anchors.verticalCenter: parent ? parent.verticalCenter : undefined

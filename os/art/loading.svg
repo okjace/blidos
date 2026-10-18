@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16203A"/>
+      <stop offset="1" stop-color="#05070D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="960" cy="470" r="72" fill="#4F7CFF"/>
+  <path d="M937,432v76l64,-38z" fill="#FFFFFF"/>
+  <text x="960" y="610" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="40" font-weight="700" fill="#FFFFFF">BlidOS</text>
+  <text x="960" y="660" text-anchor="middle" font-family="Noto Sans, sans-serif" font-size="24" fill="#FFFFFF" fill-opacity="0.7">Loading…</text>
+</svg>

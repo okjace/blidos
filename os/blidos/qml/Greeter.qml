@@ -57,7 +57,9 @@ Window {
                 win.pin.open("Enter PIN", p.name, code => login(p, code))
             }
             function login(p, code) {
-                Api.call("login", [p.user, code], () => {}, e => {
+                signingIn.name = p.name
+                Api.call("login", [p.user, code], () => {}, e => {  // on success the picker closes
+                    signingIn.name = ""
                     if (win.pin.visible) win.pin.fail(e === "Wrong PIN" ? "Wrong PIN. After 5 tries it locks for a minute." : e)
                     else win.toast(e)
                 })
@@ -81,6 +83,18 @@ Window {
                             activeFocusOnTab: true
                             scale: activeFocus ? 1.1 : 1
                             Behavior on scale { NumberAnimation { duration: 140 } }
+                            // Cards rise in one after another.
+                            opacity: 0
+                            property real rise: Theme.px(40)
+                            transform: Translate { y: card.rise }
+                            SequentialAnimation {
+                                running: true
+                                PauseAnimation { duration: 80 * index }
+                                ParallelAnimation {
+                                    NumberAnimation { target: card; property: "opacity"; to: 1; duration: 320; easing.type: Easing.OutCubic }
+                                    NumberAnimation { target: card; property: "rise"; to: 0; duration: 380; easing.type: Easing.OutCubic }
+                                }
+                            }
                             Rectangle {
                                 anchors.fill: parent; radius: Theme.px(20)
                                 color: "transparent"
@@ -237,5 +251,29 @@ Window {
     Dialog { id: dialog }
     PinPad { id: pinPad }
     Toast { id: toastBox }
+    // While signing in: covers the picker until the profile's home screen takes over.
+    Rectangle {
+        id: signingIn
+        property string name
+        anchors.fill: parent
+        opacity: name !== "" ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 220 } }
+        z: 600
+        gradient: Gradient {
+            GradientStop { position: 0; color: Theme.bgTop }
+            GradientStop { position: 1; color: Theme.bgBottom }
+        }
+        MouseArea { anchors.fill: parent }
+        Column {
+            anchors.centerIn: parent
+            spacing: Theme.px(18)
+            Image { anchors.horizontalCenter: parent.horizontalCenter; source: Theme.icon("logo"); width: Theme.px(120); height: width; sourceSize.width: width }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Hi, " + signingIn.name
+                   color: Theme.text; font.family: Theme.font; font.pixelSize: Theme.px(36); font.bold: true }
+            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Loading…"
+                   color: Theme.dim; font.family: Theme.font; font.pixelSize: Theme.px(22) }
+        }
+    }
     Connections { target: Api; function onToast(message) { toastBox.show(message) } }
 }

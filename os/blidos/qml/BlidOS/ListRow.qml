@@ -12,12 +12,13 @@ FocusScope {
     height: Theme.px(72)
     activeFocusOnTab: true
     scale: activeFocus ? 1.015 : 1
-    Behavior on scale { NumberAnimation { duration: 120 } }
+    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
     Rectangle {
         anchors.fill: parent
         radius: Theme.px(12)
         color: row.activeFocus ? Theme.surfaceHi : Theme.surface
+        Behavior on color { ColorAnimation { duration: 140 } }
         border.width: row.activeFocus ? Theme.px(3) : 0
         border.color: "white"
         Row {

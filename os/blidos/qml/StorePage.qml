@@ -114,6 +114,7 @@ Page {
             FocusScope {
                 id: card
                 width: Theme.px(400); height: Theme.px(108)
+                Entrance { delay: 25 * Math.min(index, 16) }
                 activeFocusOnTab: true
                 scale: activeFocus ? 1.04 : 1
                 z: activeFocus ? 1 : 0

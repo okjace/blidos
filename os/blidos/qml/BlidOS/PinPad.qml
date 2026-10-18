@@ -16,12 +16,12 @@ FocusScope {
     function open(t, s, handler) {
         title = t; subtitle = s || ""; error = ""; entered = ""; busy = false
         if (handler) onPin = handler
-        if (!visible) returnFocus = Window.activeFocusItem
-        visible = true
+        if (!shown) returnFocus = Window.activeFocusItem
+        shown = true
         keys.itemAt(4).forceActiveFocus()
     }
     function close() {
-        visible = false
+        shown = false
         if (returnFocus && returnFocus.visible) returnFocus.forceActiveFocus()
         else parent.forceActiveFocus()
         returnFocus = null
@@ -29,7 +29,11 @@ FocusScope {
     function fail(message) { error = message; entered = ""; busy = false; shake.start() }
 
     anchors.fill: parent
-    visible: false
+    // Opens and closes with a fade and a slight zoom; "shown" is the state, visible lasts until the fade ends.
+    property bool shown: false
+    visible: shown || opacity > 0
+    opacity: shown ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
     z: 500
 
     function press(k) {
@@ -47,6 +51,8 @@ FocusScope {
     Rectangle {
         id: panel
         anchors.centerIn: parent
+        scale: pad.shown ? 1 : 0.94
+        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
         width: Theme.px(400); height: col.height + Theme.px(64)
         radius: Theme.px(20)
         color: Theme.surface

@@ -1,11 +1,12 @@
 """Starts the BlidOS shell (home screen) or greeter (profile picker and first-boot setup)."""
 import json
 import os
+import subprocess
 import sys
 import threading
 import traceback
 
-from PySide6.QtCore import QObject, QSize, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSize, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication, QIcon, QPixmap
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickImageProvider
@@ -227,4 +228,8 @@ def main():
     engine.load(QUrl.fromLocalFile(os.path.join(qml_dir, "Shell.qml" if mode == "shell" else "Greeter.qml")))
     if not engine.rootObjects():
         sys.exit(1)
+    if mode == "shell":
+        # The session showed a loading screen as its background until now; go back to plain.
+        QTimer.singleShot(2000, lambda: subprocess.Popen(
+            ["swaymsg", "output * bg #0F1424 solid_color"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     sys.exit(app.exec())

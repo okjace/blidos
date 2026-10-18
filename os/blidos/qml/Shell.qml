@@ -36,6 +36,19 @@ Window {
         id: stack
         anchors.fill: parent
         focus: true
+        // Pages slide in from the right as you go deeper, and back out to the right.
+        pushEnter: Transition { ParallelAnimation {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "x"; from: Theme.px(90); to: 0; duration: 260; easing.type: Easing.OutCubic } } }
+        pushExit: Transition { ParallelAnimation {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 180 }
+            NumberAnimation { property: "x"; from: 0; to: -Theme.px(60); duration: 220; easing.type: Easing.OutCubic } } }
+        popEnter: Transition { ParallelAnimation {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "x"; from: -Theme.px(60); to: 0; duration: 260; easing.type: Easing.OutCubic } } }
+        popExit: Transition { ParallelAnimation {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 180 }
+            NumberAnimation { property: "x"; from: 0; to: Theme.px(90); duration: 220; easing.type: Easing.OutCubic } } }
         Keys.onPressed: (event) => {
             if ((event.key === Qt.Key_Escape || event.key === Qt.Key_Back) && stack.depth > 1) {
                 stack.pop()
@@ -52,7 +65,9 @@ Window {
         property string title
         property string detail
         anchors.fill: parent
-        visible: title !== ""
+        opacity: title !== "" ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
         color: "#E605070D"
         z: 450
         MouseArea { anchors.fill: parent }

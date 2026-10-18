@@ -157,11 +157,11 @@ set menu_color_highlight=black/light-cyan
 search --no-floppy --set=root --file /live/vmlinuz
 
 menuentry 'Try BlidOS' {
-    linux /live/vmlinuz boot=live quiet splash loglevel=3
+    linux /live/vmlinuz boot=live quiet splash loglevel=3 vt.global_cursor_default=0
     initrd /live/initrd.img
 }
 menuentry 'Install BlidOS' {
-    linux /live/vmlinuz boot=live blidos.install quiet loglevel=3
+    linux /live/vmlinuz boot=live blidos.install quiet loglevel=3 vt.global_cursor_default=0
     initrd /live/initrd.img
 }
 menuentry 'Try BlidOS (safe graphics)' {

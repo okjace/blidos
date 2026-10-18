@@ -7,20 +7,24 @@ FocusScope {
     property var buttons: []
     property Item returnFocus: null  // what had focus before; it gets it back on close
     anchors.fill: parent
-    visible: false
+    // Opens and closes with a fade and a slight zoom; "shown" is the state, visible lasts until the fade ends.
+    property bool shown: false
+    visible: shown || opacity > 0
+    opacity: shown ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
     z: 400
 
     function open(s) {
-        if (!visible) returnFocus = Window.activeFocusItem
+        if (!shown) returnFocus = Window.activeFocusItem
         spec = s
         buttons = s.buttons || [{ text: "OK", primary: true }]
         field.text = s.text || ""
-        visible = true
+        shown = true
         if (s.input) field.forceActiveFocus()
         else buttonRow.children[0].forceActiveFocus()
     }
     function close() {
-        visible = false
+        shown = false
         // A hidden dialog must not keep focus: OK would press its buttons again and Back would do nothing.
         if (returnFocus && returnFocus.visible) returnFocus.forceActiveFocus()
         else parent.forceActiveFocus()
@@ -31,6 +35,8 @@ FocusScope {
     Rectangle { anchors.fill: parent; color: "#CC05070D"; MouseArea { anchors.fill: parent } }
     Rectangle {
         anchors.centerIn: parent
+        scale: dialog.shown ? 1 : 0.94
+        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
         width: Math.min(parent.width - Theme.px(160), Theme.px(760))
         height: col.height + Theme.px(72)
         radius: Theme.px(20)
