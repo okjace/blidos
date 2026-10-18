@@ -288,6 +288,14 @@ def android_labels():
     return labels
 
 
+def _package_name(pkg):
+    """A readable name from an Android package id, e.g. "org.fdroid.fdroid" -> "Fdroid"."""
+    generic = {"com", "org", "net", "tv", "android", "androidtv", "app", "apps", "mobile", "client",
+               "mediaclient", "free", "lite", "google", "leanback", "player", "main"}
+    parts = [p for p in pkg.split(".") if p.lower() not in generic] or [pkg]
+    return parts[-1].replace("_", " ").title()
+
+
 def android_icon(pkg):
     path = os.path.join(os.path.expanduser(ANDROID_ICONS), pkg + ".png")
     return "file://" + path if os.path.exists(path) else ""
@@ -360,8 +368,10 @@ def kids_app_choices():
     Linux apps are "linux:<id>" (installed for everyone) or "flatpak:<id>" (App Store apps, which
     BlidOS installs for everyone once allowed)."""
     labels = android_labels()
-    android = [{"id": p, "label": labels[p], "icon": android_icon(p)}
-               for p in daemon("android-installed")["packages"] if p in labels]
+    # Every app the owner installed, named from Waydroid's shortcut for it. Apps installed while
+    # Android was frozen in the background may have no shortcut yet: name those from the package.
+    android = [{"id": p, "label": labels.get(p) or _package_name(p), "icon": android_icon(p)}
+               for p in daemon("android-installed")["packages"]]
     linux = [{"id": ("flatpak:" if a["source"].startswith("flatpak") else "linux:") + a["id"], "label": a["label"],
               "icon": "image://icon/" + a["icon"] if a["icon"] else ""} for a in linux_apps()]
     return {"android": sorted(android, key=lambda a: a["label"].lower()), "linux": linux}

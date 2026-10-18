@@ -122,7 +122,7 @@ def _apps():
             pkg = a["package"]
             if pkg in ANDROID_HIDDEN:
                 continue
-            apps.append({"kind": "android", "id": pkg, "label": labels.get(pkg) or pkg.split(".")[-1].title(),
+            apps.append({"kind": "android", "id": pkg, "label": labels.get(pkg) or system._package_name(pkg),
                          "icon": system.android_icon(pkg), "tv": a["tv"]})
     except system.DaemonError:
         pass  # Android isn't running yet

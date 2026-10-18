@@ -59,8 +59,9 @@ Page {
         }
     }
     Text {
-        visible: page.s.stage === "starting" && !!page.s.graphicsName
-        text: "Graphics: " + page.s.graphicsName
+        visible: page.s.stage === "starting" && !!page.s.facts
+        width: parent.width; wrapMode: Text.WordWrap
+        text: page.s.facts || ""
         color: Theme.dim; font.family: Theme.font; font.pixelSize: Theme.px(15)
     }
     Row {

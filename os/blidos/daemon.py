@@ -18,6 +18,7 @@ import socket
 import sqlite3
 import struct
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -149,7 +150,17 @@ def _require(role, *allowed):
 
 # ---------- Android (Waydroid) ----------
 
+def _unfreeze_android():
+    """Android asks to be frozen when its screen times out with no Android window open. Frozen, it
+    can't do anything BlidOS asks of it in the background (Kids apps, checks), so wake it first."""
+    state = subprocess.run(["lxc-info", "-P", "/var/lib/waydroid/lxc", "-n", "waydroid", "-sH"],
+                           capture_output=True, text=True, timeout=10).stdout.strip()
+    if state == "FROZEN":
+        subprocess.run(["waydroid", "container", "unfreeze"], capture_output=True, timeout=30)
+
+
 def _waydroid_shell(cmd, timeout=30):
+    _unfreeze_android()
     return subprocess.run(["waydroid", "shell", "--", "sh", "-c", cmd],
                           capture_output=True, text=True, timeout=timeout)
 
@@ -378,7 +389,10 @@ def _apply_kids(profile, owner_user):
         for apk in apks:
             shutil.copy(apk, staging_host)
         names = " ".join(f"/data/local/tmp/blidos/{os.path.basename(a)}" for a in apks)
-        _waydroid_shell(f"pm install-multiple -r {names}", timeout=180)
+        # "pm install" takes the app and its split APKs together (there's no "pm install-multiple").
+        r = _waydroid_shell(f"pm install -r {names}", timeout=300)
+        if "Success" not in r.stdout:
+            print(f"Kids: couldn't copy {pkg} to {profile['user']}: {(r.stdout + r.stderr).strip()}", file=sys.stderr)
     shutil.rmtree(staging_host, ignore_errors=True)
     launchable = _launchable()
     for pkg in launchable:
@@ -839,16 +853,38 @@ def _android_status():
     elapsed = int(time.time() - since)
     mode = _graphics_mode()
     nxt = FALLBACK.get(mode)
-    if nxt and elapsed > 60:
-        left = max(0, FALLBACK_AFTER - elapsed)
-        later = (f" If it's not up in {left // 60}:{left % 60:02d}, BlidOS switches to {GRAPHICS_NAMES[nxt]} graphics"
-                 " and starts it again." if left else f" Switching to {GRAPHICS_NAMES[nxt]} graphics…")
+    stalled = _progress.get("at") and time.time() - _progress["at"] >= STALL_AFTER
+    if elapsed > FALLBACK_AFTER and not stalled:
+        later = " Still working: a first start can take 10 minutes or more on some computers."
+    elif nxt and elapsed > FALLBACK_AFTER:
+        later = f" Android has stopped getting anywhere; BlidOS is switching to {GRAPHICS_NAMES[nxt]} graphics."
     else:
         later = ""
     return {"stage": "starting", "title": "Starting Android", "progress": None, "elapsed": elapsed,
             "detail": "Android is booting. The first start of a profile takes the longest." + later,
             "graphics": mode, "graphicsName": GRAPHICS_NAMES[mode], "nextGraphics": nxt or "",
-            "nextGraphicsName": GRAPHICS_NAMES.get(nxt, ""), "lines": log[-12:]}
+            "nextGraphicsName": GRAPHICS_NAMES.get(nxt, ""), "lines": log[-12:],
+            "facts": _android_facts()}
+
+
+def _android_facts():
+    """A few facts for the Starting Android screen, readable from a photo of it."""
+    try:
+        procs = _waydroid_shell("ps -A -o NAME", timeout=6).stdout
+    except subprocess.TimeoutExpired:
+        procs = ""
+    facts = [f"Graphics {GRAPHICS_NAMES[_graphics_mode()]}", f"TV mode {'on' if _tv_mode() else 'off'}",
+             "chip " + ("3D" if _has_3d() else "none")]
+    for name, label in (("surfaceflinger", "display"), ("system_server", "system"), ("dex2oat", "optimizing apps")):
+        facts.append(f"{label} {'yes' if name in procs else 'no'}")
+    try:
+        with open("/var/lib/blidos/android-graphics-fallback.log") as f:
+            switches = f.read().strip().splitlines()
+        if switches:
+            facts.append("last switch " + switches[-1][:19])
+    except OSError:
+        pass
+    return " · ".join(facts)
 
 
 FALLBACK = {"auto": "compatible", "compatible": "software"}
@@ -857,25 +893,50 @@ GRAPHICS_NAMES = {"auto": "Automatic", "compatible": "Compatible", "software": "
 LOG_NOISE = r"BootAnimation|libminijail|seccomp_policy|HidlServiceManagement.*(Trying again|Waited one second)"
 
 
+# Lines that repeat while Android waits on something: they don't mean it's getting anywhere.
+WAITING = LOG_NOISE + r"|Waited one second|Unable to set property \"ctl\.interface_start|as a lazy|is not registered|could not be found"
+STALL_AFTER = 120  # seconds without a new Android message before a slow start counts as stuck
+_progress = {}  # "line" -> Android's latest meaningful message, "at" -> when it changed
+
+
+def _android_progressing():
+    """Whether Android logged something new (not just waiting) in the last STALL_AFTER seconds.
+    A slow computer can take many minutes over a first start; that isn't a graphics problem."""
+    try:
+        lines = _waydroid_shell("logcat -d -t 300 -v brief 2>/dev/null", timeout=10).stdout.splitlines()
+    except subprocess.TimeoutExpired:
+        lines = []
+    meaningful = [l.strip() for l in lines if l.strip() and not re.search(WAITING, l)]
+    last = meaningful[-1] if meaningful else ""
+    if last != _progress.get("line"):
+        _progress.update(line=last, at=time.time())
+    return time.time() - _progress.get("at", time.time()) < STALL_AFTER
+
+
 def _android_watchdog():
-    """Android stuck starting (it never finishes, often a graphics problem): try the next
+    """Android stuck starting (it stops getting anywhere, often a graphics problem): try the next
     graphics mode (Compatible, then Software) and start it again, by itself."""
     while True:
         time.sleep(20)
         try:
             if not os.path.exists(ANDROID_READY) or not _session_running():
                 _starting_since.pop("session", None)
+                _progress.clear()
                 continue
             since = _starting_since.setdefault("session", time.time())
             if _android_ready():
                 _starting_since.pop("session", None)
+                _progress.clear()
                 continue
             mode = _graphics_mode()
-            if time.time() - since > FALLBACK_AFTER and mode in FALLBACK:
+            if time.time() - since > FALLBACK_AFTER and mode in FALLBACK and not _android_progressing():
                 with open("/var/lib/blidos/android-graphics-fallback.log", "a") as f:
-                    f.write(time.strftime("%F %T ") + f"Android didn't start with {mode} graphics; trying {FALLBACK[mode]}\n")
+                    f.write(time.strftime("%F %T ") + f"Android stopped getting anywhere with {mode} graphics; trying {FALLBACK[mode]}\n")
                 _starting_since.pop("session", None)
+                _progress.clear()
                 _set_graphics(FALLBACK[mode])
+            elif time.time() - since <= FALLBACK_AFTER:
+                _android_progressing()  # keep track from the start
         except Exception:
             pass
 
