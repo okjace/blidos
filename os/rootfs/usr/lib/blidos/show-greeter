@@ -1,0 +1,23 @@
+#!/usr/bin/python3
+"""Makes sure the profile picker's screen (VT 7) is the one showing after boot.
+
+greetd asks the kernel to switch to VT 7 as it starts. When the console on VT 1 starts at the
+same moment, that request can get lost and greetd waits forever on a screen nobody sees.
+This repeats the switch for a few seconds until VT 7 is really showing.
+"""
+import fcntl
+import time
+
+VT_ACTIVATE = 0x5606
+VT = 7
+
+for _ in range(20):
+    try:
+        with open("/sys/class/tty/tty0/active") as f:
+            if f.read().strip() == f"tty{VT}":
+                break
+        with open("/dev/tty0", "w") as tty:
+            fcntl.ioctl(tty, VT_ACTIVATE, VT)
+    except OSError:
+        pass
+    time.sleep(0.5)
