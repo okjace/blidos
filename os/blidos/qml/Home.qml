@@ -24,7 +24,7 @@ FocusScope {
         interval: 5000; repeat: true; triggeredOnStart: true; running: !home.android
         onTriggered: Api.call("androidSetup", [], s => {
             if (!s) return
-            var label = s.done ? "Android is starting" : "Downloading Android"
+            var label = s.done ? "Android is starting" : "Getting Android"
             var detail = s.done ? "Apps appear in a moment" : (s.progress ? s.progress + " · first start only" : "Needs the internet, first start only")
             if (label !== home.setupLabel || detail !== home.setupDetail) { home.setupLabel = label; home.setupDetail = detail; home.refresh() }
         }, () => {})

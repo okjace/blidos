@@ -7,6 +7,12 @@ getent group blidos >/dev/null || groupadd --system blidos
 # The profile picker reads controllers (and drives a virtual remote) too.
 getent passwd _greetd >/dev/null && usermod -aG input _greetd || true
 install -d -m 700 /var/lib/blidos
+# Installs from before 0.5.1 set Android up from images in the ISO: mark them ready.
+if [ -e /var/lib/waydroid/waydroid.cfg ] && [ ! -e /var/lib/waydroid/blidos-android-ready ] \
+        && ! systemctl is-active -q blidos-waydroid-setup.service 2>/dev/null \
+        && { [ -e /var/lib/waydroid/images/system.img ] || [ -e /usr/share/waydroid-extra/images/system.img ]; }; then
+    touch /var/lib/waydroid/blidos-android-ready
+fi
 
 # Boot menus and system info say BlidOS (Debian-compatible underneath).
 if [ -z "$(dpkg-divert --listpackage /usr/lib/os-release)" ]; then

@@ -38,3 +38,5 @@ with open(path, "w") as f:
 PY
 waydroid upgrade --offline
 systemctl restart waydroid-container
+# Only now is Android ready (Waydroid writes its config before the download finishes).
+touch /var/lib/waydroid/blidos-android-ready

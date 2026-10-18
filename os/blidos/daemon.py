@@ -165,6 +165,7 @@ def _android_ready():
 # How Android draws. "auto" lets Waydroid pick from the graphics chip. The others are for chips
 # where the automatic choice shows black screens.
 WAYDROID_CFG = "/var/lib/waydroid/waydroid.cfg"
+ANDROID_READY = "/var/lib/waydroid/blidos-android-ready"  # written when first-start setup (the download) has finished
 GRAPHICS = {
     "auto": {},
     "compatible": {"ro.hardware.gralloc": "minigbm_gbm_mesa", "ro.hardware.egl": "mesa"},
@@ -238,8 +239,8 @@ def _apply_graphics():
     settings. "auto" looks at the graphics chip every time, so a first start without working
     graphics (safe mode, a missing driver) doesn't leave Android drawing in software, or trying
     hardware that isn't there, for good. Returns whether anything changed."""
-    if not os.path.exists(WAYDROID_CFG):
-        return False
+    if not os.path.exists(ANDROID_READY):
+        return False  # still downloading: the setup picks graphics itself
     mode = _graphics_mode()
     wanted = GRAPHICS[mode] if mode != "auto" else ({} if _has_3d() else GRAPHICS["software"])
     cfg = configparser.ConfigParser()
@@ -785,6 +786,8 @@ def _check_updates():
 
 
 def _check_graphics_at_start():
+    if not os.path.exists(ANDROID_READY):
+        return
     try:
         changed = _apply_tv_files()
         if _apply_graphics() or changed:
@@ -950,7 +953,7 @@ def _handle(req, uid, name):
                 progress = f"{float(found[-1][0]) / float(found[-1][1]) * 100:.0f}%"
         except (OSError, ValueError):
             pass
-        return {"done": os.path.exists(WAYDROID_CFG), "progress": progress}
+        return {"done": os.path.exists(ANDROID_READY), "progress": progress}
 
     if op == "android-tv":
         _require(role, "owner", "profile")
