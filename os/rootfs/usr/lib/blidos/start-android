@@ -2,9 +2,17 @@
 # Starts this profile's Android (Waydroid). Each profile has its own Android data and Google account.
 # On a new install Android is still downloading at first; start as soon as it's set up. If Android
 # stops (restarted from Settings, or BlidOS changing its graphics settings), start it again.
-# Runs for as long as TV mode does.
-while [ ! -e /var/lib/waydroid/blidos-android-ready ]; do sleep 10; done
-while swaymsg -t get_version >/dev/null 2>&1; do
-    waydroid session start
+# Runs for as long as this TV mode does, and stops Android when it ends: an Android left drawing
+# on a screen that's gone never finishes starting on the next one.
+alive() { swaymsg -t get_version >/dev/null 2>&1; }
+while [ ! -e /var/lib/waydroid/blidos-android-ready ]; do alive || exit 0; sleep 10; done
+waydroid session stop >/dev/null 2>&1  # one left over from an earlier TV mode
+while alive; do
+    waydroid session start &
+    session=$!
+    while alive && kill -0 $session 2>/dev/null; do sleep 2; done
+    alive || break
     sleep 5
 done
+waydroid session stop >/dev/null 2>&1
+kill $session 2>/dev/null

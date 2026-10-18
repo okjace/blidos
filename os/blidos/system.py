@@ -653,6 +653,8 @@ def switch_mode(mode):
 
 def switch_profile():
     """Ends this profile's session; greetd shows the profile picker again."""
+    # Tells the session loop this is a sign-out, so it doesn't take a quick exit for a failed start.
+    open(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "blidos-signout"), "w").close()
     run(["swaymsg", "exit"])
 
 

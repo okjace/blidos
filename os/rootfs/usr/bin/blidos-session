@@ -12,6 +12,8 @@ export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/
 mkdir -p "$HOME/.config/blidos"
 touch "$HOME/.config/blidos/outputs.conf"
 switch="$XDG_RUNTIME_DIR/blidos-switch"
+signout="$XDG_RUNTIME_DIR/blidos-signout"  # written by "Switch profile"
+rm -f "$signout"
 retries=0
 while :; do
     rm -f "$switch"
@@ -22,9 +24,11 @@ while :; do
         (export XDG_CURRENT_DESKTOP=BlidOS:sway XDG_SESSION_DESKTOP=BlidOS MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORM=wayland
          exec sway --config /etc/blidos/sway.conf 3>&-)
     fi
+    status=$?
     splash  # between modes, or on the way back to the profile picker
-    # Ended within seconds without a switch: it couldn't start (the screen still busy). Try again.
-    if [ ! -e "$switch" ] && [ $(( $(date +%s) - started )) -lt 8 ] && [ $retries -lt 3 ]; then
+    [ -e "$signout" ] && { rm -f "$signout"; break; }  # Switch profile: back to the profile picker
+    # Failed within seconds without a switch: it couldn't start (the screen still busy). Try again.
+    if [ ! -e "$switch" ] && [ $status -ne 0 ] && [ $(( $(date +%s) - started )) -lt 8 ] && [ $retries -lt 3 ]; then
         retries=$((retries + 1)); sleep 2; touch "$switch"; continue
     fi
     retries=0
