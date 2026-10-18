@@ -1,0 +1,75 @@
+#!/usr/bin/python3
+"""Keeps the BlidOS home screen in charge of the session:
+- when the last app on the apps workspace closes, go back to the home screen;
+- when you leave an Android app (Android shows its own home), go back to the BlidOS home screen."""
+import json
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, "/usr/lib/blidos")
+import os  # noqa: E402
+
+from blidos.system import LAUNCH_MARKER, DaemonError, daemon  # noqa: E402
+
+
+def swaymsg(*args):
+    return subprocess.run(["swaymsg", *args], capture_output=True, text=True).stdout
+
+
+def focused_app():
+    def walk(node):
+        if node.get("focused"):
+            return node.get("app_id") or node.get("window_properties", {}).get("class")
+        for child in node.get("nodes", []) + node.get("floating_nodes", []):
+            found = walk(child)
+            if found:
+                return found
+        return None
+    try:
+        return walk(json.loads(swaymsg("-t", "get_tree") or "{}"))
+    except ValueError:
+        return None
+
+
+def apps_open():
+    def walk(node, ws=None):
+        if node.get("type") == "workspace":
+            ws = node.get("name")
+        if ws == "2" and node.get("pid") and node.get("type") in ("con", "floating_con"):
+            return True
+        return any(walk(c, ws) for c in node.get("nodes", []) + node.get("floating_nodes", []))
+    try:
+        return walk(json.loads(swaymsg("-t", "get_tree") or "{}"))
+    except ValueError:
+        return False
+
+
+def watch_android():
+    while True:
+        time.sleep(1.5)
+        if focused_app() != "Waydroid":
+            continue
+        # Just opened an app: Android shows its own home for a moment first.
+        try:
+            if time.time() - os.path.getmtime(LAUNCH_MARKER) < 15:
+                continue
+        except OSError:
+            pass
+        try:
+            if daemon("android-top").get("home"):
+                swaymsg("workspace", "1")
+        except DaemonError:
+            pass
+
+
+threading.Thread(target=watch_android, daemon=True).start()
+events = subprocess.Popen(["swaymsg", "-m", "-t", "subscribe", '["window"]'], stdout=subprocess.PIPE, text=True)
+for line in events.stdout:
+    try:
+        change = json.loads(line).get("change")
+    except ValueError:
+        continue
+    if change == "close" and not apps_open():
+        swaymsg("workspace", "1")

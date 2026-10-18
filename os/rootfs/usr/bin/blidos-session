@@ -1,0 +1,19 @@
+#!/bin/sh
+# A profile's session: TV mode (sway with the BlidOS home screen and Android) or Desktop mode
+# (KDE Plasma). Switching between them restarts the session here, without the profile picker.
+. /usr/lib/blidos/gpu-env
+export XDG_SESSION_TYPE=wayland
+export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
+mkdir -p "$HOME/.config/blidos"
+touch "$HOME/.config/blidos/outputs.conf"
+switch="$XDG_RUNTIME_DIR/blidos-switch"
+while :; do
+    rm -f "$switch"
+    if [ "$(/usr/lib/blidos/switch-mode current)" = desktop ]; then
+        (unset QT_QPA_PLATFORM QT_QUICK_BACKEND; /usr/lib/blidos/switch-mode desktop-setup; exec startplasma-wayland)
+    else
+        (export XDG_CURRENT_DESKTOP=BlidOS:sway XDG_SESSION_DESKTOP=BlidOS MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORM=wayland
+         exec sway --config /etc/blidos/sway.conf)
+    fi
+    [ -e "$switch" ] || break  # signed out, not switching: back to the profile picker
+done

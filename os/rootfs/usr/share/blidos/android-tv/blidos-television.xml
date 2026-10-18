@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV mode: tells Android (and Google Play) this is a TV, so Android TV apps install and run. -->
+<permissions>
+    <feature name="android.software.leanback" />
+    <feature name="android.software.live_tv" />
+</permissions>

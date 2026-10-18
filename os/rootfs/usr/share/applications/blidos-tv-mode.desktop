@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=BlidOS TV mode
+Comment=Back to the BlidOS home screen and Android apps
+Exec=/usr/lib/blidos/switch-mode tv
+Icon=/usr/share/pixmaps/blidos.svg
+Categories=System;
+OnlyShowIn=KDE;

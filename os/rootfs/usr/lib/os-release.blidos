@@ -1,0 +1,7 @@
+PRETTY_NAME="BlidOS 0.5"
+NAME="BlidOS"
+VERSION_ID="0.5"
+VERSION="0.5"
+VERSION_CODENAME=trixie
+ID=blidos
+ID_LIKE=debian

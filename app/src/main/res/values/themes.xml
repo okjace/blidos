@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF0F1424</color>
+
+    <style name="Theme.BlidOS" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorAccent">#FF4F7CFF</item>
+        <item name="android:colorPrimary">#FF0F1424</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

@@ -1,0 +1,6 @@
+#!/bin/sh
+# blidos shell | blidos greeter
+. /usr/lib/blidos/gpu-env
+export PYTHONPATH=/usr/lib/blidos${PYTHONPATH:+:$PYTHONPATH}
+export QT_QPA_PLATFORM=wayland
+exec python3 -m blidos "$@"

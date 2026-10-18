@@ -1,0 +1,7 @@
+#!/bin/sh
+# Runs under greetd as the _greetd user: the profile picker, full screen in the cage kiosk compositor.
+. /usr/lib/blidos/gpu-env
+/usr/lib/blidos/gamepad --always &  # controllers work in the profile picker too
+pad=$!
+cage -s -d -- /usr/bin/blidos greeter
+kill $pad 2>/dev/null  # the signed-in session runs its own

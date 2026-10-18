@@ -1,0 +1,12 @@
+module BlidOS
+singleton Theme 1.0 Theme.qml
+singleton Api 1.0 Api.qml
+Tile 1.0 Tile.qml
+ListRow 1.0 ListRow.qml
+PillButton 1.0 PillButton.qml
+PinPad 1.0 PinPad.qml
+Avatar 1.0 Avatar.qml
+Field 1.0 Field.qml
+Toast 1.0 Toast.qml
+Page 1.0 Page.qml
+Dialog 1.0 Dialog.qml

@@ -1,0 +1,17 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+
+# ISO build (downloads, chroots and output live outside the repo)
+iso/work/
+iso/out/
+
+# BlidOS for PCs
+os/.preview/
+# Private key for signing BlidOS's Android overlays: keep it off GitHub
+os/android-tv/signing-key.pem
+__pycache__/

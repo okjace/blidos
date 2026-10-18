@@ -1,0 +1,7 @@
+# BlidOS: the profile picker ("Who's watching?") instead of a login screen.
+[terminal]
+vt = 7
+
+[default_session]
+command = "/usr/lib/blidos/greeter-session"
+user = "_greetd"

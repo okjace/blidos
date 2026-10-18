@@ -1,0 +1,44 @@
+---
+componentName: blidos
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+windowExpanding: fullscreen
+windowSize: 1024px,640px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+  productName: BlidOS
+  shortProductName: BlidOS
+  version: 0.1.0
+  shortVersion: "0.1"
+  versionedName: BlidOS 0.1
+  shortVersionedName: BlidOS 0.1
+  bootloaderEntryName: BlidOS
+  productUrl: ""
+  supportUrl: ""
+  knownIssuesUrl: ""
+  releaseNotesUrl: ""
+  donateUrl: ""
+
+images:
+  productLogo: "logo.png"
+  productIcon: "logo.png"
+  productWelcome: "welcome.png"
+
+slideshowAPI: 1
+slideshow:
+  - "slide1.png"
+  - "slide2.png"
+
+style:
+  SidebarBackground: "#0F1424"
+  SidebarText: "#FFFFFF"
+  SidebarTextCurrent: "#FFFFFF"
+  SidebarBackgroundCurrent: "#4F7CFF"
+  sidebarBackground: "#0F1424"
+  sidebarText: "#FFFFFF"
+  sidebarTextCurrent: "#FFFFFF"
+  sidebarBackgroundCurrent: "#4F7CFF"

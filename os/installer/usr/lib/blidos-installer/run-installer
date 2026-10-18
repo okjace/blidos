@@ -1,0 +1,4 @@
+#!/bin/sh
+# Keeps the installer open until it's finished (closing it asks to restart).
+export QT_QPA_PLATFORM=wayland
+calamares

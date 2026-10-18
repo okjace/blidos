@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+case "$1" in
+remove|purge)
+    for f in /etc/greetd/config.toml /etc/pam.d/greetd /etc/security/faillock.conf; do
+        dpkg-divert --package blidos --rename --divert "$f.debian" --remove "$f" >/dev/null || true
+    done
+    ;;
+esac

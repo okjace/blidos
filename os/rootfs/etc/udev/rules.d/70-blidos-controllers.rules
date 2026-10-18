@@ -1,0 +1,2 @@
+# BlidOS: the controller helper creates a virtual remote, so profiles (group input) may use uinput.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

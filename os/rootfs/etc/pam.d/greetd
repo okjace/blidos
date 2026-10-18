@@ -1,0 +1,9 @@
+#%PAM-1.0
+# BlidOS profiles sign in with their PIN (the Linux password). Five wrong PINs lock the profile for a minute.
+auth       required      pam_faillock.so preauth
+auth       sufficient    pam_unix.so nullok
+auth       [default=die] pam_faillock.so authfail
+account    required      pam_faillock.so
+@include common-account
+@include common-session
+session    optional      pam_keyinit.so force revoke

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Runs after BlidOS is installed or updated. Never touches profiles, apps or files.
+set -e
+[ "$1" = configure ] || exit 0
+
+getent group blidos >/dev/null || groupadd --system blidos
+# The profile picker reads controllers (and drives a virtual remote) too.
+getent passwd _greetd >/dev/null && usermod -aG input _greetd || true
+install -d -m 700 /var/lib/blidos
+
+# Boot menus and system info say BlidOS (Debian-compatible underneath).
+if [ -z "$(dpkg-divert --listpackage /usr/lib/os-release)" ]; then
+    dpkg-divert --package blidos --rename --divert /usr/lib/os-release.debian --add /usr/lib/os-release >/dev/null
+fi
+cp /usr/lib/os-release.blidos /usr/lib/os-release
+
+systemctl enable blidosd.service blidos-waydroid-setup.service greetd.service NetworkManager.service \
+    bluetooth.service waydroid-container.service >/dev/null 2>&1 || true
+systemctl set-default graphical.target >/dev/null 2>&1 || true
+if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
+plymouth-set-default-theme blidos 2>/dev/null || true
+
+# The owner profile can use sudo in the Terminal, with its PIN.
+if [ -e /var/lib/blidos/profiles.json ]; then
+    for user in $(python3 -c 'import json; print(" ".join(p["user"] for p in json.load(open("/var/lib/blidos/profiles.json")) if p.get("owner")))'); do
+        usermod -aG sudo "$user" || true
+    done
+fi
+
+# Refresh the boot menu on installed systems (not while building the image).
+if [ -e /boot/grub/grub.cfg ] && command -v update-grub >/dev/null; then
+    update-grub >/dev/null 2>&1 || true
+fi

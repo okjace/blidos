@@ -1,0 +1,18 @@
+# Sourced by the BlidOS session scripts. Without 3D acceleration (some virtual machines, very old
+# graphics cards) everything is drawn in software instead.
+has_3d=no
+for card in /sys/class/drm/card*/device/driver; do
+    [ -e "$card" ] || continue
+    case "$(basename "$(readlink -f "$card")")" in
+        i915|xe|amdgpu|radeon|nouveau|nvidia) has_3d=yes ;;
+        virtio_gpu|virtio-pci)
+            # Virtual machines with virgl: feature bit 0 of the virtio GPU.
+            for f in /sys/bus/virtio/devices/*/features; do
+                [ "$(cat "$(dirname "$f")/device" 2>/dev/null)" = 0x0010 ] && [ "$(head -c1 "$f")" = 1 ] && has_3d=yes
+            done ;;
+    esac
+done
+if [ "$has_3d" = no ]; then
+    export WLR_RENDERER=pixman WLR_NO_HARDWARE_CURSORS=1 LIBGL_ALWAYS_SOFTWARE=1
+    export QT_QUICK_BACKEND=software
+fi

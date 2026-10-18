@@ -1,0 +1,169 @@
+#!/usr/bin/python3
+"""Game controllers (Xbox, PlayStation, Switch, Steam and generic USB/Bluetooth pads) as a remote.
+
+On the BlidOS screens, the D-pad and left stick move, A (Cross) selects and B (Circle) goes back.
+The Xbox / PS / Home button always returns to the BlidOS home screen, even from a game.
+Games and Android apps read the controller themselves, so nothing is sent while they're in front.
+
+  gamepad            in a TV-mode session (sway): only acts while BlidOS is in front
+  gamepad --always   in the profile picker, which is always in front
+"""
+import json
+import os
+import select
+import subprocess
+import sys
+import threading
+import time
+
+import evdev
+from evdev import UInput, ecodes as e
+
+ALWAYS = "--always" in sys.argv
+KEYS = {e.BTN_SOUTH: e.KEY_ENTER, e.BTN_EAST: e.KEY_ESC, e.BTN_START: e.KEY_ENTER, e.BTN_SELECT: e.KEY_ESC,
+        e.BTN_DPAD_UP: e.KEY_UP, e.BTN_DPAD_DOWN: e.KEY_DOWN, e.BTN_DPAD_LEFT: e.KEY_LEFT,
+        e.BTN_DPAD_RIGHT: e.KEY_RIGHT}
+HOME = e.KEY_F1  # the session's "go home" key (see /etc/blidos/sway.conf)
+REPEAT_DELAY, REPEAT_RATE = 0.40, 0.11
+
+NAME = "BlidOS controller remote"
+state = {"blidos_in_front": ALWAYS}
+out = None  # the virtual remote (a keyboard) the presses come from
+
+
+def tap(key):
+    out.write(e.EV_KEY, key, 1)
+    out.write(e.EV_KEY, key, 0)
+    out.syn()
+
+
+def is_gamepad(dev):
+    caps = dev.capabilities().get(e.EV_KEY, [])
+    return dev.name != NAME and (e.BTN_SOUTH in caps or e.BTN_GAMEPAD in caps)
+
+
+def watch_focus():
+    """Follows which window is in front, from sway's window events."""
+    def focused(node):
+        if node.get("focused"):
+            return node.get("app_id") or ""
+        for child in node.get("nodes", []) + node.get("floating_nodes", []):
+            found = focused(child)
+            if found is not None:
+                return found
+        return None
+
+    def update():
+        tree = subprocess.run(["swaymsg", "-t", "get_tree"], capture_output=True, text=True).stdout
+        try:
+            state["blidos_in_front"] = focused(json.loads(tree)) == "blidos"
+        except ValueError:
+            pass
+
+    update()
+    events = subprocess.Popen(["swaymsg", "-m", "-t", "subscribe", '["window", "workspace"]'],
+                              stdout=subprocess.PIPE, text=True)
+    for _ in events.stdout:
+        update()
+
+
+class Pad:
+    """One controller: turns its stick and D-pad into arrow presses that repeat while held."""
+
+    def __init__(self, dev):
+        self.dev = dev
+        self.held = None        # arrow key being held
+        self.next_repeat = 0
+        self.axes = {}
+        for code in (e.ABS_X, e.ABS_Y):
+            info = dev.absinfo(code) if code in dict(dev.capabilities().get(e.EV_ABS, [])) else None
+            if info:
+                self.axes[code] = (info.min + info.max) / 2, (info.max - info.min) / 2
+
+    def stick_direction(self, code, value):
+        if code in (e.ABS_HAT0X, e.ABS_HAT0Y):
+            pos = value
+        elif code in self.axes:
+            mid, half = self.axes[code]
+            pos = 0 if half == 0 else (value - mid) / half
+            pos = -1 if pos < -0.6 else 1 if pos > 0.6 else 0
+        else:
+            return None
+        if code in (e.ABS_X, e.ABS_HAT0X):
+            return e.KEY_LEFT if pos < 0 else e.KEY_RIGHT if pos > 0 else 0
+        return e.KEY_UP if pos < 0 else e.KEY_DOWN if pos > 0 else 0
+
+    def handle(self, ev):
+        if ev.type == e.EV_KEY and ev.code == e.BTN_MODE and ev.value == 1:
+            tap(HOME)  # the Xbox / PS / Home button: always home
+            return
+        if not state["blidos_in_front"]:
+            self.held = None
+            return
+        if ev.type == e.EV_KEY and ev.code in KEYS:
+            key = KEYS[ev.code]
+            if key in (e.KEY_UP, e.KEY_DOWN, e.KEY_LEFT, e.KEY_RIGHT):
+                self.hold(key if ev.value else 0)
+            elif ev.value == 1:
+                tap(key)
+        elif ev.type == e.EV_ABS:
+            direction = self.stick_direction(ev.code, ev.value)
+            if direction is not None and (direction or self.held in self.keys_for(ev.code)):
+                self.hold(direction)
+
+    @staticmethod
+    def keys_for(code):
+        return (e.KEY_LEFT, e.KEY_RIGHT) if code in (e.ABS_X, e.ABS_HAT0X) else (e.KEY_UP, e.KEY_DOWN)
+
+    def hold(self, key):
+        if key == self.held:
+            return
+        self.held = key or None
+        if self.held:
+            tap(self.held)
+            self.next_repeat = time.monotonic() + REPEAT_DELAY
+
+    def repeat(self):
+        if self.held and state["blidos_in_front"] and time.monotonic() >= self.next_repeat:
+            tap(self.held)
+            self.next_repeat = time.monotonic() + REPEAT_RATE
+
+
+def main():
+    global out
+    out = UInput({e.EV_KEY: sorted(set(KEYS.values()) | {HOME})}, name=NAME)
+    if not ALWAYS:
+        threading.Thread(target=watch_focus, daemon=True).start()
+    pads = {}
+    last_scan = 0
+    while True:
+        if time.monotonic() - last_scan > 2:  # controllers come and go (Bluetooth, USB)
+            last_scan = time.monotonic()
+            for path in evdev.list_devices():
+                if path not in pads:
+                    try:
+                        dev = evdev.InputDevice(path)
+                        if is_gamepad(dev):
+                            pads[path] = Pad(dev)
+                        else:
+                            dev.close()
+                    except OSError:
+                        pass
+        fds = {pad.dev.fd: path for path, pad in pads.items()}
+        ready, _, _ = select.select(list(fds), [], [], 0.05) if fds else ([], [], time.sleep(0.05))
+        for fd in ready:
+            path = fds[fd]
+            try:
+                for ev in pads[path].dev.read():
+                    pads[path].handle(ev)
+            except OSError:  # unplugged or out of range
+                pads.pop(path).dev.close()
+        for pad in pads.values():
+            pad.repeat()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except PermissionError:
+        sys.exit("gamepad: no access to /dev/uinput or the controllers (groups input)")

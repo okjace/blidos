@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BlidOS manages Android users through system APIs that aren't in the public SDK. -->
+<config>
+    <hidden-api-whitelisted-app package="com.blidos.launcher" />
+</config>

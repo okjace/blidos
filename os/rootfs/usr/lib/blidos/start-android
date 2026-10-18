@@ -1,0 +1,4 @@
+#!/bin/sh
+# Starts this profile's Android (Waydroid). Each profile has its own Android data and Google account.
+[ -e /var/lib/waydroid/waydroid.cfg ] || exit 0
+exec waydroid session start

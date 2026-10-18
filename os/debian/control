@@ -1,0 +1,10 @@
+Package: blidos
+Version: @VERSION@
+Architecture: all
+Maintainer: BlidOS <blidos@localhost>
+Section: misc
+Priority: optional
+Depends: python3, python3-pyside6.qtquick, qml6-module-qtquick-controls, greetd, cage, sway, swayidle, waydroid, network-manager, bluez, pipewire, plymouth, sudo, pciutils, flatpak, kde-plasma-desktop, plasma-discover-backend-flatpak, xdg-desktop-portal-wlr, python3-evdev
+Description: BlidOS TV interface and system services
+ The BlidOS home screen, profile picker, setup and settings, the blidosd
+ service, and the system configuration that makes Debian a TV.

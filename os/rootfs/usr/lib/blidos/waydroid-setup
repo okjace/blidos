@@ -1,0 +1,30 @@
+#!/bin/sh
+# First boot: set up Android (Waydroid) from the images on disk, as a TV with apps in their own windows.
+set -e
+waydroid init -f
+python3 - <<'PY'
+import configparser, glob, os, re
+path = "/var/lib/waydroid/waydroid.cfg"
+cfg = configparser.ConfigParser()
+cfg.read(path)
+if not cfg.has_section("properties"):
+    cfg.add_section("properties")
+props = cfg["properties"]
+props["persist.waydroid.multi_windows"] = "false"  # Android runs full screen, like a TV
+props["persist.waydroid.uevent"] = "true"  # controllers and other USB/Bluetooth input reach Android
+props["persist.waydroid.cursor_on_subsurface"] = "true"
+props["ro.product.model"] = "BlidOS"
+props["qemu.hw.mainkeys"] = "1"  # no Android navigation bar: BlidOS handles Back and Home
+# No 3D acceleration (virtual machines): Android draws in software.
+drivers = " ".join(os.path.basename(os.path.realpath(p)) for p in glob.glob("/sys/class/drm/card*/device/driver"))
+virgl = any(open(os.path.join(os.path.dirname(f), "device")).read().strip() == "0x0010" and open(f).read(1) == "1"
+            for f in glob.glob("/sys/bus/virtio/devices/*/features"))
+if not virgl and not re.search(r"i915|xe|amdgpu|radeon|nouveau", drivers):
+    props["ro.hardware.gralloc"] = "default"
+    props["ro.hardware.egl"] = "swiftshader"
+cfg["waydroid"]["mount_overlays"] = "True"
+with open(path, "w") as f:
+    cfg.write(f)
+PY
+waydroid upgrade --offline
+systemctl restart waydroid-container

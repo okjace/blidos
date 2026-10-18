@@ -1,0 +1,14 @@
+// BlidOS: profiles change Wi-Fi, time zone and power without an admin password.
+// The profile picker (greeter) can use Wi-Fi and power during first-boot setup.
+polkit.addRule(function (action, subject) {
+    if (!subject.local || !subject.active) return polkit.Result.NOT_HANDLED;
+    var profile = subject.isInGroup("blidos");
+    var greeter = subject.user == "_greetd";
+    if (!profile && !greeter) return polkit.Result.NOT_HANDLED;
+
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0) return polkit.Result.YES;
+    if (action.id.indexOf("org.freedesktop.login1.reboot") == 0 ||
+        action.id.indexOf("org.freedesktop.login1.power-off") == 0) return polkit.Result.YES;
+    if (profile && action.id == "org.freedesktop.timedate1.set-timezone") return polkit.Result.YES;
+    return polkit.Result.NOT_HANDLED;
+});

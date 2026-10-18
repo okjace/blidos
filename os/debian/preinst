@@ -1,0 +1,10 @@
+#!/bin/sh
+# Settings files that belong to other Debian packages: set theirs aside so BlidOS's are used.
+set -e
+case "$1" in
+install|upgrade)
+    for f in /etc/greetd/config.toml /etc/pam.d/greetd /etc/security/faillock.conf; do
+        dpkg-divert --package blidos --rename --divert "$f.debian" --add "$f" >/dev/null
+    done
+    ;;
+esac

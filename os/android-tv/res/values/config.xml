@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No keyguard service (there is no such component, so Android runs without a lock screen). -->
+    <string name="config_keyguardComponent" translatable="false">com.android.systemui/.NoKeyguardOnBlidOS</string>
+</resources>

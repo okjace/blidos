@@ -1,0 +1,13 @@
+[Unit]
+Description=Set up Android apps for BlidOS
+ConditionPathExists=!/var/lib/waydroid/waydroid.cfg
+After=local-fs.target systemd-modules-load.service waydroid-container.service
+Before=greetd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/blidos/waydroid-setup
+
+[Install]
+WantedBy=multi-user.target

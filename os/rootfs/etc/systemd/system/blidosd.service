@@ -1,0 +1,10 @@
+[Unit]
+Description=BlidOS service (profiles, Kids rules, drivers, updates)
+
+[Service]
+Environment=PYTHONPATH=/usr/lib/blidos
+ExecStart=/usr/bin/python3 -m blidos.daemon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

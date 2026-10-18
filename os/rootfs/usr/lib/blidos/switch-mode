@@ -1,0 +1,96 @@
+#!/usr/bin/python3
+"""TV mode / Desktop mode for this profile.
+
+  switch-mode tv|desktop   switch now (the session restarts in the other mode)
+  switch-mode current      print the mode this profile starts in (Kids profiles: always tv)
+  switch-mode desktop-setup   first-time setup of the desktop (a "BlidOS TV mode" icon)
+  switch-mode finish-desktop  (internal) end Plasma once it has closed its windows
+"""
+import os
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, "/usr/lib/blidos")
+from blidos.system import DaemonError, daemon  # noqa: E402
+
+MODE_FILE = os.path.expanduser("~/.config/blidos/mode")
+SWITCH = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "blidos-switch")
+TV_LAUNCHER = "/usr/share/applications/blidos-tv-mode.desktop"
+
+
+def kids():
+    try:
+        return daemon("whoami").get("role") == "kids"
+    except DaemonError:
+        return False
+
+
+def current():
+    try:
+        with open(MODE_FILE) as f:
+            mode = f.read().strip()
+    except OSError:
+        mode = "tv"
+    return "desktop" if mode == "desktop" and not kids() else "tv"
+
+
+def switch(mode):
+    if mode == "desktop" and kids():
+        sys.exit("Kids profiles stay in TV mode")
+    os.makedirs(os.path.dirname(MODE_FILE), exist_ok=True)
+    with open(MODE_FILE, "w") as f:
+        f.write(mode + "\n")
+    open(SWITCH, "w").close()
+    if "KDE" in os.environ.get("XDG_CURRENT_DESKTOP", ""):
+        # Plasma closes its apps (so they can save), but outside its own login screen its session
+        # manager then waits forever. A helper outside Plasma finishes the job; the session script
+        # then starts TV mode.
+        subprocess.run(["systemd-run", "--user", "--collect", "--quiet", "/usr/lib/blidos/switch-mode",
+                        "finish-desktop"], capture_output=True)
+        subprocess.run(["dbus-send", "--session", "--type=method_call", "--dest=org.kde.Shutdown",
+                        "/Shutdown", "org.kde.Shutdown.logout"], capture_output=True)
+    else:
+        subprocess.run(["waydroid", "session", "stop"], capture_output=True, timeout=60)
+        subprocess.run(["swaymsg", "exit"], capture_output=True)
+
+
+def finish_desktop():
+    def running(name):
+        return subprocess.run(["pgrep", "-u", str(os.getuid()), "-x", name], capture_output=True).returncode == 0
+    time.sleep(3)
+    for _ in range(10):  # apps get to save and close; the desktop shell goes last
+        if not running("plasmashell"):
+            break
+        time.sleep(1)
+    time.sleep(1)
+    for name in ("plasma-shutdown", "ksmserver", "startplasma-way", "kwin_wayland", "plasmashell"):
+        subprocess.run(["pkill", "-u", str(os.getuid()), "-x", name], capture_output=True)
+
+
+def desktop_setup():
+    try:
+        desktop = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        desktop = ""
+    desktop = desktop or os.path.expanduser("~/Desktop")
+    os.makedirs(desktop, exist_ok=True)
+    icon = os.path.join(desktop, "blidos-tv-mode.desktop")
+    if not os.path.exists(icon):
+        with open(TV_LAUNCHER) as src, open(icon, "w") as dst:
+            dst.write(src.read())
+        os.chmod(icon, 0o755)  # Plasma only runs desktop icons that are executable
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "current":
+        print(current())
+    elif cmd == "desktop-setup":
+        desktop_setup()
+    elif cmd == "finish-desktop":
+        finish_desktop()
+    elif cmd in ("tv", "desktop"):
+        switch(cmd)
+    else:
+        sys.exit(__doc__)
