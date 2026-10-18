@@ -12,6 +12,11 @@ DEB=$OUT/blidos_${VERSION}_all.deb
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
+if [ -f "$ISO" ] && [ -e "$OUT/android-bundled-$VERSION" ]; then
+    echo "This ISO was built with BUNDLE_ANDROID=1: it contains Google's apps and can't be published." >&2
+    exit 1
+fi
+
 files=()
 [ -f "$DEB" ] && files+=("$DEB")
 if [ -f "$ISO" ]; then

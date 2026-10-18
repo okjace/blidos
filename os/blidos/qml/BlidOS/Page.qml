@@ -8,6 +8,9 @@ FocusScope {
     property string subtitle
     default property alias content: column.data
     property alias column: column
+    // Follow focus by scrolling only when it moves by keys (remote, keyboard, controller). With a
+    // mouse, hovering focuses rows too, and scrolling would slide the row away from the pointer.
+    property bool usingKeys: true
 
     function focusFirst() {
         var item = page.nextItemInFocusChain(true)
@@ -32,6 +35,7 @@ FocusScope {
         contentHeight: inner.height + Theme.px(120)
         boundsBehavior: Flickable.StopAtBounds
         clip: true
+        HoverHandler { onPointChanged: page.usingKeys = false }
         Behavior on contentY { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         Column {
@@ -61,7 +65,7 @@ FocusScope {
         target: page.Window.window
         function onActiveFocusItemChanged() {
             var item = page.Window.activeFocusItem
-            if (!item || !page.contains_(item)) return
+            if (!item || !page.contains_(item) || !page.usingKeys) return
             var y = item.mapToItem(inner, 0, 0).y + inner.y
             var margin = Theme.px(140)
             if (y - margin < flick.contentY) flick.contentY = Math.max(0, y - margin)
@@ -71,6 +75,7 @@ FocusScope {
     }
 
     Keys.onPressed: (event) => {
+        usingKeys = true
         if (event.key === Qt.Key_Down || event.key === Qt.Key_Right) { move(true); event.accepted = true }
         else if (event.key === Qt.Key_Up || event.key === Qt.Key_Left) { move(false); event.accepted = true }
     }

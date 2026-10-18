@@ -20,8 +20,9 @@ TV_LAUNCHER = "/usr/share/applications/blidos-tv-mode.desktop"
 
 
 def kids():
+    """A Kids profile a parent hasn't allowed Desktop mode."""
     try:
-        return daemon("whoami").get("role") == "kids"
+        return not daemon("kid-may", rule="desktop")["allowed"]
     except DaemonError:
         return False
 
@@ -37,7 +38,7 @@ def current():
 
 def switch(mode):
     if mode == "desktop" and kids():
-        sys.exit("Kids profiles stay in TV mode")
+        sys.exit("A parent hasn't allowed Desktop mode for this profile")
     os.makedirs(os.path.dirname(MODE_FILE), exist_ok=True)
     with open(MODE_FILE, "w") as f:
         f.write(mode + "\n")

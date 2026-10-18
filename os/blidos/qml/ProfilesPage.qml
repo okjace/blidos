@@ -5,7 +5,7 @@ import BlidOS
 Page {
     id: page
     title: "Profiles"
-    subtitle: "Each profile has its own apps, Android data and Google account. Kids profiles only get the apps you choose."
+    subtitle: "Each profile has its own apps, Android data and Google account. Kids profiles only get the apps and permissions you choose."
     property var profiles: []
 
     function refresh() { Api.call("profiles", [], p => { profiles = p }) }
@@ -32,7 +32,7 @@ Page {
         if (p.hasPin) buttons.push({ text: "Remove PIN", action: () => Api.call("setPin", [p.user, ""], refresh) })
         if (!p.owner) {
             buttons.push({ text: p.kids ? "Turn off Kids mode" : "Turn on Kids mode", action: () => Api.call("updateProfile", [p.user, { kids: !p.kids }], refresh) })
-            if (p.kids) buttons.push({ text: "Choose apps", action: () => Window.window.push("KidsAppsPage.qml", { profile: p }) })
+            if (p.kids) buttons.push({ text: "Apps and permissions", action: () => Window.window.push("KidsAppsPage.qml", { profile: p }) })
             buttons.push({ text: "Delete", action: () => d.open({ title: "Delete " + p.name + "?",
                 message: "This deletes " + p.name + "'s apps, files and Google account from this computer.",
                 buttons: [{ text: "Delete", primary: true, action: () => Api.call("deleteProfile", [p.user], () => { Window.window.toast("Deleted " + p.name); refresh() }) }, { text: "Cancel" }] }) })

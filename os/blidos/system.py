@@ -328,11 +328,11 @@ def linux_apps():
     """Linux apps for the home screen: App Store (Flatpak) apps and apps you installed yourself."""
     seen, apps = set(), []
     base = _base_apps()
-    dirs = [os.path.expanduser("~/.local/share/flatpak/exports/share/applications"),
-            "/var/lib/flatpak/exports/share/applications",
-            "/usr/share/applications", "/usr/local/share/applications",
-            os.path.expanduser("~/.local/share/applications")]
-    for d in dirs:
+    dirs = [(os.path.expanduser("~/.local/share/flatpak/exports/share/applications"), "flatpak-user"),
+            ("/var/lib/flatpak/exports/share/applications", "flatpak"),
+            ("/usr/share/applications", "system"), ("/usr/local/share/applications", "system"),
+            (os.path.expanduser("~/.local/share/applications"), "user")]
+    for d, source in dirs:
         for path in sorted(glob.glob(os.path.join(d, "*.desktop"))):
             app_id = os.path.basename(path)[:-len(".desktop")]
             if app_id in seen or app_id in HIDDEN_LINUX_APPS or app_id.startswith("waydroid."):
@@ -350,9 +350,21 @@ def linux_apps():
             if e.get("Terminal", "false") == "true" or "Settings" in e.get("Categories", ""):
                 continue
             seen.add(app_id)
-            apps.append({"id": app_id, "label": e.get("Name", app_id), "icon": _icon_file(e.get("Icon", "")),
+            apps.append({"id": app_id, "source": source, "label": e.get("Name", app_id), "icon": _icon_file(e.get("Icon", "")),
                          "exec": re.sub(r"%[a-zA-Z]|@@u?", "", e.get("Exec", "")).strip()})
     return sorted(apps, key=lambda a: a["label"].lower())
+
+
+def kids_app_choices():
+    """What a parent can choose from for a Kids profile: their Android apps and Linux apps.
+    Linux apps are "linux:<id>" (installed for everyone) or "flatpak:<id>" (App Store apps, which
+    BlidOS installs for everyone once allowed)."""
+    labels = android_labels()
+    android = [{"id": p, "label": labels[p], "icon": android_icon(p)}
+               for p in daemon("android-installed")["packages"] if p in labels]
+    linux = [{"id": ("flatpak:" if a["source"].startswith("flatpak") else "linux:") + a["id"], "label": a["label"],
+              "icon": "image://icon/" + a["icon"] if a["icon"] else ""} for a in linux_apps()]
+    return {"android": sorted(android, key=lambda a: a["label"].lower()), "linux": linux}
 
 
 # ---------- App Store (Flatpak apps from Flathub) ----------
@@ -387,8 +399,8 @@ def _store_list(hits):
 
 
 def _not_kids():
-    if daemon("whoami").get("role") == "kids":
-        raise DaemonError("Kids profiles can't install apps")
+    if not daemon("kid-may", rule="store")["allowed"]:
+        raise DaemonError("A parent hasn't allowed the App Store for this profile")
 
 
 def store_browse(category=""):
@@ -592,8 +604,8 @@ def switch_mode(mode):
     """TV mode or Desktop mode (KDE Plasma): the session restarts in the other mode."""
     if mode not in ("tv", "desktop"):
         raise ValueError("Unknown mode")
-    if mode == "desktop":
-        _not_kids()
+    if mode == "desktop" and not daemon("kid-may", rule="desktop")["allowed"]:
+        raise DaemonError("A parent hasn't allowed Desktop mode for this profile")
     subprocess.Popen(["/usr/lib/blidos/switch-mode", mode], start_new_session=True,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

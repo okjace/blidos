@@ -19,7 +19,7 @@ BlidOS comes in two forms:
 
 **Install it:**
 
-1. Write `BlidOS-0.5.0-x86_64.iso` to a USB stick of at least 4 GB with [balenaEtcher](https://etcher.balena.io/), Rufus (DD mode) or Ventoy.
+1. Download the ISO from [Releases](https://github.com/okjace/blidos/releases). If it's in parts, join them as the release notes say. Write `BlidOS-<version>-x86_64.iso` to a USB stick of at least 4 GB with [balenaEtcher](https://etcher.balena.io/), Rufus (DD mode) or Ventoy.
 2. In your PC's firmware settings, turn off **Secure Boot**. Then boot from the USB stick.
 3. Choose **Install BlidOS**. To look around first, choose **Try BlidOS**.
 4. Pick where BlidOS goes: alongside another system, a partition you choose, the whole disk, or your own partitions. BlidOS needs at least 16 GB.
@@ -33,7 +33,13 @@ BlidOS comes in two forms:
 - **Settings → Install a package** installs `.deb` files (drivers and Linux apps, along with anything they need) and `.apk` files (Android apps) from a USB drive or a Downloads folder.
 - The owner profile can also use `sudo` in the Terminal (Settings → Terminal). The password is the owner's PIN, and the username is `profile1`.
 
-**Updates:** Settings → Updates installs everything with one button. That covers BlidOS updates (a `blidos_<version>_all.deb` file on a USB drive) and system updates from the internet (security fixes, drivers, the kernel). Profiles, Android apps and files are never touched, because:
+**Updates:** Settings → Updates installs everything with one button. That covers new BlidOS versions and system updates from the internet (security fixes, drivers, the kernel). BlidOS finds new versions in three places:
+
+- online, in this repository's [Releases](https://github.com/okjace/blidos/releases) (0.5.1 and newer; the owner gets a notice after signing in);
+- on a USB stick written from a newer BlidOS ISO (0.5.1 and newer);
+- as a `blidos_<version>_all.deb` file on a USB stick (FAT32 or exFAT) or in Downloads. This works on every version, so older versions update this way.
+
+Profiles, Android apps and files are never touched, because:
 
 - BlidOS is a single package (`blidos`), so an update replaces only BlidOS's own files;
 - an install that would remove any installed package is stopped instead;
@@ -53,11 +59,17 @@ How it works: this Android (LineageOS 20) is a tablet build. Marked as a TV, it 
 
 **If Android apps still show black:** BlidOS waits until Android has finished starting before it opens an app, and on every start it checks the graphics chip to choose how Android draws. On some chips another setting works better: Settings → Android and Google Play → Graphics → **Compatible** (or **Software**). "Save a problem report" writes `~/blidos-android-report.txt` with the graphics chip and Android's errors.
 
+**Android on first start:** the ISO doesn't include Android, because its image contains Google's apps, which can't be redistributed. On a new install, BlidOS downloads Android with Google Play from Waydroid's servers (about 1 GB) as soon as it's online. The home screen shows the progress, and Android apps work once it's done.
+
 **Google Play:** BlidOS isn't a Google-certified device, so each profile needs a one-time registration. Settings → Android and Google Play shows the device ID to enter at google.com/android/uncertified. Some streaming apps (Netflix, for example) play at lower quality on uncertified devices.
 
 **Controllers:** Xbox (USB cable or Bluetooth), PlayStation 3/4/5, Switch Pro and Joy-Con, Steam and most other USB or Bluetooth controllers work in games, in Android apps and on the BlidOS screens. On BlidOS screens, the D-pad or left stick moves, A (Cross) selects and B (Circle) goes back. The Xbox, PS or Home button goes back to the home screen from anywhere. Settings → Controllers lists connected controllers with their battery level and explains pairing. Microsoft's USB Xbox Wireless Adapter isn't supported yet (Debian has no driver for it), so connect those controllers by cable or Bluetooth instead.
 
-**Kids profiles:** the owner picks apps they've already installed from Google Play. BlidOS copies those into the kid's Android and turns everything else off, including Google Play and Android settings.
+**Kids profiles:** in Settings → Profiles → the kid → Apps and permissions, the owner chooses:
+
+- **Android apps** from the owner's Google Play installs. BlidOS copies them into the kid's Android and turns everything else off.
+- **Linux apps**: App Store apps (BlidOS installs them for everyone once allowed) and other installed programs, such as Firefox.
+- **What they can do**, all off until allowed: Google Play (install their own Android apps), the App Store, Desktop mode, Settings (Wi-Fi, Bluetooth, sound, display), and restart and shut down.
 
 **Build it:** `os/build-os.sh` builds the ISO without root (Debian in a user namespace). The steps are `packages` (Debian and all packages), `system` (BlidOS and the Android images) and `iso`. The `system` step also writes `blidos_<version>_all.deb`, the BlidOS update file, next to the ISO. To release an update, raise the version in `os/rootfs/etc/blidos-version` and run `os/build-os.sh system`. The code:
 

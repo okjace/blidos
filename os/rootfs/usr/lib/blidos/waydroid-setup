@@ -1,7 +1,17 @@
 #!/bin/sh
-# First boot: set up Android (Waydroid) from the images on disk, as a TV with apps in their own windows.
+# First boot: set up Android (Waydroid), full screen like a TV.
 set -e
-waydroid init -f
+# Android with Google Play comes from Waydroid's servers (Google's apps can't be redistributed in
+# the BlidOS ISO). A private build may bundle the images instead (BUNDLE_ANDROID=1 in build-os.sh).
+LOG=/var/lib/blidos/android-setup.log
+mkdir -p /var/lib/blidos
+if [ -e /usr/share/waydroid-extra/images/system.img ]; then
+    waydroid init -f > "$LOG" 2>&1
+else
+    # Wait for the internet; systemd starts this again if the download fails.
+    until curl -s -o /dev/null --max-time 10 https://ota.waydro.id/; do sleep 20; done
+    PYTHONUNBUFFERED=1 waydroid init -f -s GAPPS > "$LOG" 2>&1
+fi
 python3 - <<'PY'
 import configparser, glob, os, re
 path = "/var/lib/waydroid/waydroid.cfg"

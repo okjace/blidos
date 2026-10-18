@@ -52,11 +52,14 @@ SAMPLE = {
     "timezone": "America/New_York", "timezones": ["America/New_York", "Europe/London"], "gsfId": "3A1B2C4D5E6F7081",
     "hasTerminal": True,
     "androidGraphics": "auto",
+    "androidSetup": {"done": True, "progress": ""},
     "storeCategories": [{"id": "", "name": "Popular"}, {"id": "game", "name": "Games"}, {"id": "audiovideo", "name": "Video and music"},
                         {"id": "education", "name": "Learning"}, {"id": "graphics", "name": "Photos and art"}, {"id": "network", "name": "Internet"},
                         {"id": "office", "name": "Office"}, {"id": "utility", "name": "Tools"}],
     "storeInstalled": ["org.videolan.VLC"],
     "storeJob": {"running": False, "ok": None, "message": ""},
+    "kidsAppChoices": {"android": [{"id": "com.google.android.youtube.tv", "label": "YouTube", "icon": ""}, {"id": "com.netflix.ninja", "label": "Netflix", "icon": ""}],
+                       "linux": [{"id": "flatpak:net.sourceforge.ExtremeTuxRacer", "label": "Extreme Tux Racer", "icon": ""}, {"id": "linux:firefox-esr", "label": "Firefox ESR", "icon": ""}]},
     "controllers": [{"name": "Xbox Wireless Controller", "connection": "Bluetooth", "battery": 80},
                     {"name": "Sony Interactive Entertainment DualSense Wireless Controller", "connection": "USB", "battery": None}],
 }
@@ -95,7 +98,7 @@ def main():
     win.setWidth(1920)
     win.setHeight(1080)
     if page:
-        QTimer.singleShot(400, lambda: win.push(page, {}))
+        QTimer.singleShot(400, lambda: win.push(page, json.loads(os.environ.get("PREVIEW_PROPS", "{}"))))
 
     def dump(item, depth=0):
         if depth > 5:

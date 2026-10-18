@@ -7,7 +7,28 @@ FocusScope {
     property var me: Window.window ? Window.window.me : null
     property bool android: Window.window ? Window.window.androidRunning : false
     property bool kids: !!(me && me.kids)
+    // Kids profiles: what a parent allowed (Settings → Profiles → the kid → What they can do).
+    // Reads the profile directly: this runs when the profile arrives, before "kids" updates.
+    function may(rule) { return !(me && me.kids) || !!(me.rules && me.rules[rule]) }
+    function kidAllowed(a) {
+        var allowed = me && me.allowed ? me.allowed : []
+        if (a.kind === "android") return true  // already filtered for them
+        return allowed.indexOf("linux:" + a.id) >= 0 || allowed.indexOf("flatpak:" + a.id) >= 0
+            || (a.source === "flatpak-user" && may("store"))  // their own App Store apps
+    }
     property string connection: ""
+    // A new install downloads Android first (a few minutes, once).
+    property string setupLabel: "Android is starting"
+    property string setupDetail: "Apps appear in a moment"
+    Timer {
+        interval: 5000; repeat: true; triggeredOnStart: true; running: !home.android
+        onTriggered: Api.call("androidSetup", [], s => {
+            if (!s) return
+            var label = s.done ? "Android is starting" : "Downloading Android"
+            var detail = s.done ? "Apps appear in a moment" : (s.progress ? s.progress + " · first start only" : "Needs the internet, first start only")
+            if (label !== home.setupLabel || detail !== home.setupDetail) { home.setupLabel = label; home.setupDetail = detail; home.refresh() }
+        }, () => {})
+    }
 
     ListModel { id: appsModel }
     ListModel { id: settingsModel }
@@ -16,15 +37,16 @@ FocusScope {
         Api.call("apps", [], apps => {
             var focusedId = appsList.currentItem ? appsList.currentItem.appId : ""
             appsModel.clear()
-            if (!kids) {
+            if (may("googlePlay")) {
                 appsModel.append(android
                     ? { kind: "play", appId: "com.android.vending", label: "Google Play", subtitle: "Get Android and Android TV apps", icon: "", tile: Theme.play }
-                    : { kind: "wait", appId: "", label: "Android is starting", subtitle: "Apps appear in a moment", icon: "", tile: Theme.surface })
-                appsModel.append({ kind: "store", appId: "blidos.store", label: "App Store", subtitle: "Linux apps and games", icon: "", tile: Theme.accent })
+                    : { kind: "wait", appId: "", label: home.setupLabel, subtitle: home.setupDetail, icon: "", tile: Theme.surface })
             }
+            if (may("store"))
+                appsModel.append({ kind: "store", appId: "blidos.store", label: "App Store", subtitle: "Linux apps and games", icon: "", tile: Theme.accent })
             for (var i = 0; i < apps.length; i++) {
                 var a = apps[i]
-                if (kids && a.kind === "linux") continue  // Kids profiles only get the Android apps chosen for them
+                if (kids && !kidAllowed(a)) continue  // Kids profiles only get the apps chosen for them
                 appsModel.append({ kind: a.kind, appId: a.id, label: a.label, subtitle: a.kind === "linux" ? "Linux app" : (a.tv ? "Android TV app" : "Android app"),
                                    icon: a.icon, tile: Theme.surface, exec: a.exec || "" })
             }
@@ -36,12 +58,13 @@ FocusScope {
 
     function buildSettings() {
         settingsModel.clear()
-        if (!kids) {
+        if (may("settings")) {
             settingsModel.append({ key: "wifi", label: "Wi-Fi", icon: "wifi" })
             settingsModel.append({ key: "bluetooth", label: "Bluetooth", icon: "bluetooth" })
             settingsModel.append({ key: "settings", label: "Settings", icon: "tune" })
-            settingsModel.append({ key: "desktop", label: "Desktop mode", icon: "desktop" })
         }
+        if (may("desktop"))
+            settingsModel.append({ key: "desktop", label: "Desktop mode", icon: "desktop" })
         settingsModel.append({ key: "switch", label: "Switch profile", icon: "person" })
         settingsModel.append({ key: "power", label: "Power", icon: "power" })
     }
@@ -55,11 +78,11 @@ FocusScope {
         else if (key === "desktop") w.dialog.open({ title: "Switch to Desktop mode?",
             message: "A full KDE Plasma desktop for mouse and keyboard, with your files and apps. Android stops until you come back. To return, open \"BlidOS TV mode\" on the desktop.",
             buttons: [{ text: "Switch", primary: true, action: () => { w.busy("Starting Desktop mode…"); Api.call("switchMode", ["desktop"]) } }, { text: "Cancel" }] })
-        else if (key === "power") w.dialog.open({ title: "Power", buttons: [
+        else if (key === "power") w.dialog.open({ title: "Power", buttons: may("power") ? [
             { text: "Switch profile", action: () => Api.call("switchProfile") },
             { text: "Restart", action: () => Api.call("restart") },
             { text: "Shut down", action: () => Api.call("shutDown") },
-            { text: "Cancel" }] })
+            { text: "Cancel" }] : [{ text: "Switch profile", action: () => Api.call("switchProfile") }, { text: "Cancel" }] })
     }
 
     function launch(item) {

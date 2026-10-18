@@ -1,4 +1,5 @@
 #!/bin/sh
 # Starts this profile's Android (Waydroid). Each profile has its own Android data and Google account.
-[ -e /var/lib/waydroid/waydroid.cfg ] || exit 0
+# On a new install Android is still downloading at first; start as soon as it's set up.
+while [ ! -e /var/lib/waydroid/waydroid.cfg ]; do sleep 10; done
 exec waydroid session start

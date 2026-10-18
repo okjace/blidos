@@ -63,11 +63,29 @@ def _has_password(user):
         return False
 
 
+# What a Kids profile may do besides opening its allowed apps. Parents turn these on per kid.
+KIDS_RULES = {"googlePlay": False,  # Google Play: install their own Android apps
+              "store": False,       # the App Store (Linux apps and games)
+              "desktop": False,     # Desktop mode (KDE Plasma)
+              "settings": False,    # Wi-Fi, Bluetooth, sound, display
+              "power": False}       # restart and shut down
+
+
+def _rules(p):
+    saved = p.get("rules", {})
+    return {k: bool(saved.get(k, default)) for k, default in KIDS_RULES.items()}
+
+
+def _kid_may(profiles, user, rule):
+    me = next((p for p in profiles if p["user"] == user), None)
+    return not (me and me.get("kids")) or _rules(me)[rule]
+
+
 def _public(p):
     return {
         "user": p["user"], "name": p["name"], "color": p.get("color", 0),
         "owner": p.get("owner", False), "kids": p.get("kids", False),
-        "allowed": p.get("allowed", []), "hasPin": _has_password(p["user"]),
+        "allowed": p.get("allowed", []), "rules": _rules(p), "hasPin": _has_password(p["user"]),
     }
 
 
@@ -345,8 +363,10 @@ def _resolve(pkg):
 
 
 def _apply_kids(profile, owner_user):
-    """Inside a Kids profile's Android: copy in the allowed apps from the owner's Android, hide everything else."""
-    allowed = set(profile.get("allowed", [])) - {GOOGLE, ANDROID_SETTINGS}
+    """Inside a Kids profile's Android: copy in the allowed apps from the owner's Android, hide everything
+    else. With Google Play allowed, the apps they install themselves stay too."""
+    play = _rules(profile)["googlePlay"]
+    allowed = {a for a in profile.get("allowed", []) if ":" not in a} - {GOOGLE, ANDROID_SETTINGS}
     installed = set(_android_packages())
     staging_host = os.path.join(_android_data(profile["user"]), "local", "tmp", "blidos")
     for pkg, apks in _owner_apks(owner_user).items():
@@ -361,10 +381,10 @@ def _apply_kids(profile, owner_user):
     shutil.rmtree(staging_host, ignore_errors=True)
     launchable = _launchable()
     for pkg in launchable:
-        verb = "enable" if pkg in allowed else "disable-user --user 0"
+        verb = "enable" if pkg in allowed or (play and pkg != ANDROID_SETTINGS) else "disable-user --user 0"
         _waydroid_shell(f"pm {verb} {pkg}")
-    for pkg in (GOOGLE, ANDROID_SETTINGS):
-        _waydroid_shell(f"pm disable-user --user 0 {pkg}")
+    _waydroid_shell(f"pm {'enable' if play else 'disable-user --user 0'} {GOOGLE}")
+    _waydroid_shell(f"pm disable-user --user 0 {ANDROID_SETTINGS}")
 
 
 def _gsf_id(user):
@@ -839,6 +859,9 @@ def _handle(req, uid, name):
     if op == "update":
         target = _find(profiles, req["user"])
         _require(role, "owner")
+        before = set(target.get("allowed", []))
+        if "rules" in req:
+            target["rules"] = {k: bool(v) for k, v in dict(req["rules"]).items() if k in KIDS_RULES}
         for key in ("name", "color", "kids", "allowed"):
             if key in req:
                 if key == "kids" and target.get("owner"):
@@ -847,7 +870,20 @@ def _handle(req, uid, name):
         if "name" in req:
             subprocess.run(["usermod", "--comment", str(req["name"])[:20], target["user"]], capture_output=True)
         _save(profiles)
-        return {"profile": _public(target)}
+        # App Store apps the owner allowed: they're installed for the owner only, so install them for
+        # everyone (the kid's profile then finds them).
+        new = [a.split(":", 1)[1] for a in set(target.get("allowed", [])) - before if a.startswith("flatpak:")]
+        new = [a for a in new if re.fullmatch(r"[A-Za-z0-9_.-]+", a) and subprocess.run(
+            ["flatpak", "info", "--system", a], capture_output=True).returncode != 0]
+        if new:
+            _run_job("kids-apps", [["flatpak", "install", "--system", "-y", "--noninteractive", "flathub", *new]])
+        return {"profile": _public(target), "installing": new}
+
+    if op == "kid-may":
+        # Whether this profile may use something parents can turn off (always yes for grown-ups).
+        if req.get("rule") not in KIDS_RULES:
+            raise ValueError("Unknown rule")
+        return {"allowed": _kid_may(profiles, name, req["rule"])}
 
     if op == "set-pin":
         target = _find(profiles, req["user"])
@@ -872,7 +908,7 @@ def _handle(req, uid, name):
         _require(role, "owner", "profile", "kids")
         apps = _launchable()
         me = next((p for p in profiles if p["user"] == name), None)
-        if me and me.get("kids"):
+        if me and me.get("kids") and not _rules(me)["googlePlay"]:
             allowed = set(me.get("allowed", []))
             apps = {k: v for k, v in apps.items() if k in allowed}
         return {"apps": [{"package": k, "tv": v} for k, v in apps.items()]}
@@ -883,7 +919,7 @@ def _handle(req, uid, name):
         if not re.fullmatch(r"[A-Za-z0-9_.]+", pkg):
             raise ValueError("Bad package name")
         me = next((p for p in profiles if p["user"] == name), None)
-        if me and me.get("kids") and pkg not in me.get("allowed", []):
+        if me and me.get("kids") and pkg not in me.get("allowed", []) and not _rules(me)["googlePlay"]:
             raise Denied("Not allowed")
         component = _resolve(pkg)
         if not component:
@@ -903,6 +939,18 @@ def _handle(req, uid, name):
                 raise ValueError("Unknown graphics mode")
             _set_graphics(req["mode"])
         return {"mode": _graphics_mode()}
+
+    if op == "android-setup":
+        # First start on a new install: Android is downloading.
+        progress = ""
+        try:
+            with open("/var/lib/blidos/android-setup.log", errors="replace") as f:
+                found = re.findall(r"\[Downloading\] ([0-9.]+) MB/([0-9.]+) MB", f.read()[-4000:])
+            if found and float(found[-1][1]) > 0:
+                progress = f"{float(found[-1][0]) / float(found[-1][1]) * 100:.0f}%"
+        except (OSError, ValueError):
+            pass
+        return {"done": os.path.exists(WAYDROID_CFG), "progress": progress}
 
     if op == "android-tv":
         _require(role, "owner", "profile")

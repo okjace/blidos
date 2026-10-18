@@ -89,13 +89,20 @@ if [ "$STEP" = system ] || [ "$STEP" = all ]; then
     "
     in_root "DEBIAN_FRONTEND=noninteractive dpkg -i /var/tmp/blidos.deb && rm /var/tmp/blidos.deb"
     step "Android system images"
-    if [ ! -e "$ROOT/usr/share/waydroid-extra/images/system.img" ]; then
+    # Public ISOs don't include Android: its image contains Google's apps, which can't be
+    # redistributed, so BlidOS downloads it from Waydroid on first start. BUNDLE_ANDROID=1 puts it
+    # in the ISO for offline installs; don't publish an ISO built that way.
+    if [ "${BUNDLE_ANDROID:-0}" = 1 ]; then
         as_root "
             mkdir -p '$ROOT/usr/share/waydroid-extra/images'
             cd '$ROOT/usr/share/waydroid-extra/images'
-            unzip -o -q '$WAYDROID_IMAGES/system.zip'
-            unzip -o -q '$WAYDROID_IMAGES/vendor.zip'
+            [ -e system.img ] || unzip -o -q '$WAYDROID_IMAGES/system.zip'
+            [ -e vendor.img ] || unzip -o -q '$WAYDROID_IMAGES/vendor.zip'
         "
+        mkdir -p "$WORK/out" && touch "$WORK/out/android-bundled-$VERSION"  # os/tools/release.sh refuses these
+    else
+        as_root "rm -rf '$ROOT/usr/share/waydroid-extra/images'"
+        rm -f "$WORK/out/android-bundled-$VERSION"
     fi
     step "System settings"
     in_root "

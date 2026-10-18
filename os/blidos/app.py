@@ -64,6 +64,7 @@ def _calls(mode):
             "androidReport": system.save_android_report,
             "androidTv": lambda on=None: d("android-tv", **({} if on is None else {"on": on}))["on"],
             "androidStarted": lambda: d("android-started"),
+            "androidSetup": lambda: d("android-setup"),
             "storeCategories": lambda: [{"id": k, "name": v} for k, v in system.STORE_CATEGORIES.items()],
             "storeBrowse": system.store_browse,
             "storeSearch": system.store_search,
@@ -74,6 +75,7 @@ def _calls(mode):
             "storeOpen": system.store_open,
             "switchMode": system.switch_mode,
             "controllers": system.controllers,
+            "kidsAppChoices": system.kids_app_choices,
             "openAndroidSettings": lambda: d("android-launch", package="com.android.settings"),
             "gsfId": lambda: d("gsf-id")["id"],
             "volume": system.volume,
@@ -123,7 +125,7 @@ def _apps():
         pass  # Android isn't running yet
     apps.sort(key=lambda a: (not a["tv"], a["label"].lower()))
     for a in system.linux_apps():
-        apps.append({"kind": "linux", "id": a["id"], "label": a["label"],
+        apps.append({"kind": "linux", "id": a["id"], "source": a["source"], "label": a["label"],
                      "icon": "image://icon/" + a["icon"] if a["icon"] else "", "exec": a["exec"]})
     return apps
 
