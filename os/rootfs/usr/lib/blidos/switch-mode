@@ -56,6 +56,7 @@ def switch(mode):
         subprocess.run(["dbus-send", "--session", "--type=method_call", "--dest=org.kde.Shutdown",
                         "/Shutdown", "org.kde.Shutdown.logout"], capture_output=True)
     else:
+        subprocess.run(["pkill", "-u", str(os.getuid()), "-f", "^/bin/sh /usr/lib/blidos/start-android"], capture_output=True)
         subprocess.run(["waydroid", "session", "stop"], capture_output=True, timeout=60)
         subprocess.run(["swaymsg", "exit"], capture_output=True)
 
@@ -69,11 +70,22 @@ def finish_desktop():
             break
         time.sleep(1)
     time.sleep(1)
-    for name in ("plasma-shutdown", "ksmserver", "startplasma-way", "kwin_wayland", "plasmashell"):
+    # The wrapper first: it would start KWin again, and KWin would keep the screen from TV mode.
+    for name in ("kwin_wayland_wr", "plasma-shutdown", "ksmserver", "startplasma-way", "kwin_wayland", "plasmashell"):
         subprocess.run(["pkill", "-u", str(os.getuid()), "-x", name], capture_output=True)
+    for _ in range(20):  # until the screen is free
+        if not running("kwin_wayland"):
+            break
+        time.sleep(0.25)
+    subprocess.run(["/usr/lib/blidos/fb-splash"], capture_output=True)  # loading screen until TV mode is up
 
 
 def desktop_setup():
+    # Plasma's loading screen in BlidOS's look (Plasma reads this from the profile's own settings).
+    cfg = os.path.expanduser("~/.config/ksplashrc")
+    os.makedirs(os.path.dirname(cfg), exist_ok=True)
+    with open(cfg, "w") as f:
+        f.write("[KSplash]\nEngine=KSplashQML\nTheme=org.blidos.splash\n")
     try:
         desktop = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True).stdout.strip()
     except OSError:

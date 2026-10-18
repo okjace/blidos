@@ -1,0 +1,53 @@
+#!/usr/bin/python3
+"""Paints the BlidOS loading screen straight onto the display (the kernel framebuffer).
+
+Between the profile picker, TV mode and Desktop mode, one screen program hands the display to
+the next, and for a moment nothing draws it. Called at those moments, this keeps the loading
+screen up, so the switch looks like one smooth loading screen instead of a black flash.
+The image is converted once per screen size and cached, so later calls are instant.
+"""
+import os
+import sys
+
+FB = "/dev/fb0"
+SYS = "/sys/class/graphics/fb0"
+IMAGE = "/usr/share/blidos/loading.png"
+
+
+def read(name):
+    with open(os.path.join(SYS, name)) as f:
+        return f.read().strip()
+
+
+def main():
+    try:
+        bpp = int(read("bits_per_pixel"))
+        stride = int(read("stride"))
+        vw, vh = (int(v) for v in read("virtual_size").split(","))
+        mode = read("modes").splitlines()[0]  # e.g. "U:1920x1080p-0"
+        w, h = (int(v) for v in mode.split(":")[1].split("p")[0].split("x"))
+    except (OSError, ValueError, IndexError):
+        w, h = vw, vh
+    if bpp != 32:
+        return
+    cache = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", f"blidos-splash-{w}x{h}-{stride}.raw")
+    if not os.path.exists(cache):
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QImage
+        img = QImage(IMAGE).scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        img = img.copy((img.width() - w) // 2, (img.height() - h) // 2, w, h).convertToFormat(QImage.Format_RGB32)
+        row = img.bytesPerLine()
+        data = bytes(img.constBits())
+        with open(cache + ".tmp", "wb") as f:
+            for y in range(h):  # framebuffer rows can be wider than the picture (stride)
+                f.write(data[y * row:y * row + w * 4].ljust(stride, b"\0"))
+        os.replace(cache + ".tmp", cache)
+    with open(cache, "rb") as src, open(FB, "wb") as fb:
+        fb.write(src.read())
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:  # never stop a session from starting over a splash
+        print("fb-splash:", e, file=sys.stderr)

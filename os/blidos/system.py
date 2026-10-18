@@ -466,8 +466,7 @@ def store_remove(app_id):
 
 def store_open(app_id):
     _check_app_id(app_id)
-    subprocess.Popen(["flatpak", "run", app_id], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _start_and_wait(["flatpak", "run", app_id])
 
 
 # ---------- Game controllers ----------
@@ -484,6 +483,19 @@ def _controller_battery(uniq):
             except (OSError, ValueError):
                 return None
     return None
+
+
+def controller_remote():
+    """The controller helper's status: running, the controllers it uses, the last button pressed."""
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "blidos-gamepad.json")
+    try:
+        with open(path) as f:
+            s = json.load(f)
+    except (OSError, ValueError):
+        return {"running": False, "pads": [], "last": "", "ago": None, "error": "Not running"}
+    alive = s.get("running") and os.path.exists(f"/proc/{s.get('pid', 0)}")  # it may have stopped since
+    return {"running": bool(alive), "pads": s.get("pads", []), "last": s.get("last", ""),
+            "ago": round(time.time() - s["at"]) if s.get("at") else None, "error": s.get("error", "")}
 
 
 def controllers():
@@ -511,9 +523,42 @@ def controllers():
     return sorted(found, key=lambda c: c["name"])
 
 
+def _windows():
+    """Ids of the app windows open now (sway)."""
+    ids = set()
+
+    def walk(node):
+        if node.get("type") in ("con", "floating_con") and node.get("pid"):
+            ids.add(node["id"])
+        for child in node.get("nodes", []) + node.get("floating_nodes", []):
+            walk(child)
+    try:
+        walk(json.loads(run(["swaymsg", "-t", "get_tree"]).stdout or "{}"))
+    except ValueError:
+        pass
+    return ids
+
+
+def _start_and_wait(cmd, timeout=120):
+    """Starts an app and returns once its window is on screen, so BlidOS can show "Opening…"
+    meanwhile (some apps, Flatpak ones especially, take a while the first time)."""
+    before = _windows()
+    p = subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    end = time.time() + timeout
+    while time.time() < end:
+        time.sleep(0.4)
+        if _windows() - before:
+            return
+        code = p.poll()
+        if code is not None and code != 0:
+            raise DaemonError("The app didn't start")
+        if code == 0 and time.time() > end - timeout + 15:
+            return  # a launcher that handed off and quit; its app may show up later
+    # Still no window: stop waiting, the app may be running in the background.
+
+
 def launch_linux(exec_line):
-    subprocess.Popen(["sh", "-c", exec_line], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _start_and_wait(["sh", "-c", exec_line])
 
 
 def android_session():
@@ -532,11 +577,8 @@ def android_running():
 
 
 def wait_for_android(timeout=300):
-    """Starts Android if needed and waits until it can show apps."""
-    if not android_session():
-        subprocess.Popen(["/usr/lib/blidos/start-android"], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    end = time.time() + timeout
+    """Waits until Android can show apps."""
+    end = time.time() + timeout  # TV mode's start-android starts (and restarts) Android
     while time.time() < end:
         if android_running():
             return
@@ -593,9 +635,8 @@ def show_android():
 
 
 def restart_android():
+    """Stops this profile's Android; TV mode's start-android starts it again."""
     run(["waydroid", "session", "stop"], timeout=60)
-    subprocess.Popen(["/usr/lib/blidos/start-android"], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 # ---------- Session and power ----------

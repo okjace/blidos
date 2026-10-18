@@ -785,6 +785,89 @@ def _check_updates():
             "refreshing": _apt_refresh["running"]}
 
 
+# ---------- Android starting up: what's happening, and getting unstuck ----------
+
+_starting_since = {}  # "session" -> when this Android session was first seen starting
+
+
+def _tail_lines(path, n):
+    try:
+        with open(path, errors="replace") as f:
+            text = f.read()[-20000:]
+    except OSError:
+        return []
+    lines = [l.strip() for l in re.split(r"[\r\n]+", text) if l.strip()]
+    return lines[-n:]
+
+
+def _session_running():
+    out = subprocess.run(["waydroid", "status"], capture_output=True, text=True, timeout=15).stdout
+    return re.search(r"Session:\s+RUNNING", out) is not None
+
+
+def _android_status():
+    """Where Android is on its way to running, for the "Starting Android" screen."""
+    if not os.path.exists(ANDROID_READY):
+        lines = _tail_lines("/var/lib/blidos/android-setup.log", 12)
+        found = [re.search(r"\[Downloading\] ([0-9.]+) MB/([0-9.]+) MB", l) for l in lines]
+        found = [m for m in found if m]
+        if found and float(found[-1].group(2)) > 0:
+            pct = round(float(found[-1].group(1)) / float(found[-1].group(2)) * 100)
+            return {"stage": "downloading", "title": "Downloading Android", "progress": pct,
+                    "detail": "About 1 GB, once. Android works when this is done.", "lines": lines}
+        return {"stage": "setting-up", "title": "Setting up Android", "progress": None,
+                "detail": "Waiting for the internet, then downloading Android (once)." if not lines else "Almost there.",
+                "lines": lines}
+    try:
+        running = _session_running()
+    except subprocess.TimeoutExpired:
+        running = False
+    if not running:
+        _starting_since.pop("session", None)
+        return {"stage": "waiting", "title": "Starting Android", "progress": None,
+                "detail": "Starting this profile's Android…", "lines": _tail_lines("/var/lib/waydroid/waydroid.log", 10)}
+    if _android_ready():
+        _starting_since.pop("session", None)
+        return {"stage": "running", "title": "Android is ready", "progress": 100, "detail": "", "lines": []}
+    since = _starting_since.setdefault("session", time.time())
+    try:
+        log = _waydroid_shell("logcat -d -t 14 -v brief 2>/dev/null", timeout=8).stdout.splitlines()
+    except subprocess.TimeoutExpired:
+        log = []
+    elapsed = int(time.time() - since)
+    return {"stage": "starting", "title": "Starting Android", "progress": None, "elapsed": elapsed,
+            "detail": "Android is booting. The first start of a profile takes the longest."
+                      + (" Still going: BlidOS tries other graphics settings after a few minutes." if elapsed > 120 else ""),
+            "lines": [l.strip() for l in log if l.strip()][-12:]}
+
+
+FALLBACK = {"auto": "compatible", "compatible": "software"}
+FALLBACK_AFTER = 360  # seconds an Android start may take before BlidOS tries other graphics settings
+
+
+def _android_watchdog():
+    """Android stuck starting (it never finishes, often a graphics problem): try the next
+    graphics mode (Compatible, then Software) and start it again, by itself."""
+    while True:
+        time.sleep(20)
+        try:
+            if not os.path.exists(ANDROID_READY) or not _session_running():
+                _starting_since.pop("session", None)
+                continue
+            since = _starting_since.setdefault("session", time.time())
+            if _android_ready():
+                _starting_since.pop("session", None)
+                continue
+            mode = _graphics_mode()
+            if time.time() - since > FALLBACK_AFTER and mode in FALLBACK:
+                with open("/var/lib/blidos/android-graphics-fallback.log", "a") as f:
+                    f.write(time.strftime("%F %T ") + f"Android didn't start with {mode} graphics; trying {FALLBACK[mode]}\n")
+                _starting_since.pop("session", None)
+                _set_graphics(FALLBACK[mode])
+        except Exception:
+            pass
+
+
 def _check_graphics_at_start():
     if not os.path.exists(ANDROID_READY):
         return
@@ -942,6 +1025,10 @@ def _handle(req, uid, name):
                 raise ValueError("Unknown graphics mode")
             _set_graphics(req["mode"])
         return {"mode": _graphics_mode()}
+
+    if op == "android-status":
+        _require(role, "owner", "profile", "kids")
+        return _android_status()
 
     if op == "android-setup":
         # First start on a new install: Android is downloading.
@@ -1116,6 +1203,7 @@ def main():
     srv.listen(16)
     _recover_installs()
     threading.Thread(target=_check_graphics_at_start, daemon=True).start()
+    threading.Thread(target=_android_watchdog, daemon=True).start()
     while True:
         conn, _ = srv.accept()
         threading.Thread(target=_serve, args=(conn,), daemon=True).start()

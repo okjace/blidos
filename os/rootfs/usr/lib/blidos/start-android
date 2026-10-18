@@ -1,5 +1,10 @@
 #!/bin/sh
 # Starts this profile's Android (Waydroid). Each profile has its own Android data and Google account.
-# On a new install Android is still downloading at first; start as soon as it's set up.
+# On a new install Android is still downloading at first; start as soon as it's set up. If Android
+# stops (restarted from Settings, or BlidOS changing its graphics settings), start it again.
+# Runs for as long as TV mode does.
 while [ ! -e /var/lib/waydroid/blidos-android-ready ]; do sleep 10; done
-exec waydroid session start
+while swaymsg -t get_version >/dev/null 2>&1; do
+    waydroid session start
+    sleep 5
+done

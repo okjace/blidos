@@ -42,7 +42,10 @@ Page {
         if (jobs[app.id] && jobs[app.id].running) { w.toast(jobs[app.id].message); return }
         if (isInstalled(app.id)) {
             w.dialog.open({ title: app.name, message: about, buttons: [
-                { text: "Open", primary: true, action: () => Api.call("storeOpen", [app.id]) },
+                { text: "Open", primary: true, action: () => {
+                    w.busy("Opening " + app.name + "…", "Some apps take a little while to open, especially the first time.")
+                    Api.call("storeOpen", [app.id], () => w.busy(""), e => { w.busy(""); w.toast(e) })
+                } },
                 { text: "Remove", action: () => w.dialog.open({ title: "Remove " + app.name + "?", message: "Its settings and files in this profile are removed too.", buttons: [
                     { text: "Remove", primary: true, action: () => Api.call("storeRemove", [app.id], () => { w.toast(app.name + " removed"); refreshInstalled() }) },
                     { text: "Cancel" }] }) },

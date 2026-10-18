@@ -1,22 +1,32 @@
 #!/bin/sh
 # A profile's session: TV mode (sway with the BlidOS home screen and Android) or Desktop mode
 # (KDE Plasma). Switching between them restarts the session here, without the profile picker.
-# Blank console, no cursor; messages go to a log instead of the screen.
-printf '\033[2J\033[H\033[?25l'
+# Between screens the BlidOS loading screen stays up (fb-splash), never a black console.
+exec 3>&1  # the console, for colors; everything printed goes to a log instead
 exec >>"${XDG_RUNTIME_DIR:-/tmp}/blidos-session.log" 2>&1
+splash() { printf '\033]P00F1424\033[2J\033[H\033[?25l' >&3; sleep 0.2; /usr/lib/blidos/fb-splash; }  # console redraws first, then the picture
+splash
 . /usr/lib/blidos/gpu-env
 export XDG_SESSION_TYPE=wayland
 export XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share"
 mkdir -p "$HOME/.config/blidos"
 touch "$HOME/.config/blidos/outputs.conf"
 switch="$XDG_RUNTIME_DIR/blidos-switch"
+retries=0
 while :; do
     rm -f "$switch"
+    started=$(date +%s)
     if [ "$(/usr/lib/blidos/switch-mode current)" = desktop ]; then
-        (unset QT_QPA_PLATFORM QT_QUICK_BACKEND; /usr/lib/blidos/switch-mode desktop-setup; exec startplasma-wayland)
+        (unset QT_QPA_PLATFORM QT_QUICK_BACKEND; /usr/lib/blidos/switch-mode desktop-setup; exec startplasma-wayland 3>&-)
     else
         (export XDG_CURRENT_DESKTOP=BlidOS:sway XDG_SESSION_DESKTOP=BlidOS MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORM=wayland
-         exec sway --config /etc/blidos/sway.conf)
+         exec sway --config /etc/blidos/sway.conf 3>&-)
     fi
+    splash  # between modes, or on the way back to the profile picker
+    # Ended within seconds without a switch: it couldn't start (the screen still busy). Try again.
+    if [ ! -e "$switch" ] && [ $(( $(date +%s) - started )) -lt 8 ] && [ $retries -lt 3 ]; then
+        retries=$((retries + 1)); sleep 2; touch "$switch"; continue
+    fi
+    retries=0
     [ -e "$switch" ] || break  # signed out, not switching: back to the profile picker
 done

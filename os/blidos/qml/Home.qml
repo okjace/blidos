@@ -77,24 +77,30 @@ FocusScope {
         if (key === "wifi") w.push("WifiPage.qml")
         else if (key === "bluetooth") w.push("BluetoothPage.qml")
         else if (key === "settings") w.push("SettingsPage.qml")
-        else if (key === "switch") Api.call("switchProfile")
+        else if (key === "switch") Window.window.switchProfile()
         else if (key === "desktop") w.dialog.open({ title: "Switch to Desktop mode?",
             message: "A full KDE Plasma desktop for mouse and keyboard, with your files and apps. Android stops until you come back. To return, open \"BlidOS TV mode\" on the desktop.",
             buttons: [{ text: "Switch", primary: true, action: () => { w.busy("Starting Desktop mode…"); Api.call("switchMode", ["desktop"]) } }, { text: "Cancel" }] })
         else if (key === "power") w.dialog.open({ title: "Power", buttons: may("power") ? [
-            { text: "Switch profile", action: () => Api.call("switchProfile") },
+            { text: "Switch profile", action: () => Window.window.switchProfile() },
             { text: "Restart", action: () => Api.call("restart") },
             { text: "Shut down", action: () => Api.call("shutDown") },
-            { text: "Cancel" }] : [{ text: "Switch profile", action: () => Api.call("switchProfile") }, { text: "Cancel" }] })
+            { text: "Cancel" }] : [{ text: "Switch profile", action: () => Window.window.switchProfile() }, { text: "Cancel" }] })
     }
 
-    function launch(item) {
-        if (item.kind === "wait") return
+    function launch(item, androidReady) {
+        // Android not ready yet: show what it's doing, and open the app when it's up.
+        if (item.kind === "wait") { Window.window.push("AndroidStartPage.qml"); return }
+        if ((item.kind === "play" || item.kind === "android") && !android && !androidReady) {
+            Window.window.push("AndroidStartPage.qml", { openWhenReady: { kind: item.kind, appId: item.appId, label: item.label, exec: item.exec || "" } })
+            return
+        }
         if (item.kind === "store") { Window.window.push("StorePage.qml"); return }
         var w = Window.window
         var androidApp = item.kind === "play" || item.kind === "android"
-        if (androidApp)
-            w.busy("Opening " + item.label + "…", android ? "" : "Android is still starting. The first start after setting up a profile can take a few minutes.")
+        w.busy("Opening " + item.label + "…", androidApp && !android
+               ? "Android is still starting. The first start after setting up a profile can take a few minutes."
+               : "Some apps take a little while to open, especially the first time.")
         var done = () => w.busy("")
         Api.call("launch", item.kind === "play" ? ["android", "com.android.vending"] : [item.kind, item.appId, item.exec],
                  done, e => { done(); w.toast(e) })
@@ -135,9 +141,9 @@ FocusScope {
                     color: Theme.text; font.family: Theme.font; font.pixelSize: Theme.px(24); font.bold: true
                 }
             }
-            Keys.onReturnPressed: Api.call("switchProfile")
+            Keys.onReturnPressed: Window.window.switchProfile()
             Keys.onDownPressed: appsList.forceActiveFocus()
-            MouseArea { anchors.fill: parent; onClicked: Api.call("switchProfile") }
+            MouseArea { anchors.fill: parent; onClicked: Window.window.switchProfile() }
         }
         Row {
             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter

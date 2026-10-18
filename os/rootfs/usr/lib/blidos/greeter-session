@@ -1,10 +1,13 @@
 #!/bin/sh
-# Runs under greetd as the _greetd user: the profile picker, full screen in the cage kiosk compositor.
-# Blank console, no cursor; messages go to a log instead of the screen.
-printf '\033[2J\033[H\033[?25l'
+# Runs under greetd as the _greetd user: the profile picker, full screen in sway.
+# Between screens the BlidOS loading screen stays up (fb-splash), never a black console.
+exec 3>&1  # the console, for colors; everything printed goes to a log instead
 exec >>"${XDG_RUNTIME_DIR:-/tmp}/blidos-greeter.log" 2>&1
+splash() { printf '\033]P00F1424\033[2J\033[H\033[?25l' >&3; sleep 0.2; /usr/lib/blidos/fb-splash; }  # console redraws first, then the picture
+splash
 . /usr/lib/blidos/gpu-env
-/usr/lib/blidos/gamepad --always &  # controllers work in the profile picker too
+/usr/lib/blidos/gamepad --always 3>&- &  # controllers work in the profile picker too
 pad=$!
-cage -s -d -- /usr/bin/blidos greeter
+sway --config /etc/blidos/greeter-sway.conf 3>&-
 kill $pad 2>/dev/null  # the signed-in session runs its own
+splash  # until the profile's session takes over

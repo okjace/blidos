@@ -7,10 +7,14 @@ Page {
     id: page
     title: "Controllers"
     property var pads: []
+    property var remote: null
     subtitle: pads.length ? "Connected controllers. Games and Android apps use them directly."
                           : "No controllers connected. Plug one in with a USB cable, or pair it over Bluetooth."
     function refresh() { Api.call("controllers", [], p => { pads = p }, () => {}) }
     Timer { interval: 3000; running: true; repeat: true; triggeredOnStart: true; onTriggered: page.refresh() }
+    // Live test: what the controller remote sees.
+    Timer { interval: 700; running: true; repeat: true; triggeredOnStart: true
+            onTriggered: Api.call("controllerRemote", [], r => { page.remote = r }, () => {}) }
 
     Repeater {
         model: page.pads
@@ -19,6 +23,12 @@ Page {
             iconSource: Theme.icon("gamepad")
             detail: [modelData.connection, modelData.battery !== null ? "Battery " + modelData.battery + "%" : ""].filter(s => s).join(" · ")
         }
+    }
+    ListRow {
+        title: "Button test"
+        detail: !page.remote ? "" : !page.remote.running ? "Not working: " + (page.remote.error || "the controller remote isn't running")
+              : page.remote.last && page.remote.ago !== null && page.remote.ago < 5 ? "You pressed " + page.remote.last
+              : page.remote.pads.length ? "Press any button on the controller" : "No controller found yet"
     }
     PillButton { text: "Pair a Bluetooth controller"; primary: true; onActivated: Window.window.push("BluetoothPage.qml") }
     Text {

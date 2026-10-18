@@ -5,7 +5,8 @@ set -e
 
 getent group blidos >/dev/null || groupadd --system blidos
 # The profile picker reads controllers (and drives a virtual remote) too.
-getent passwd _greetd >/dev/null && usermod -aG input _greetd || true
+# ... and paints the loading screen between screens (video: the display's framebuffer).
+getent passwd _greetd >/dev/null && usermod -aG input,video _greetd || true
 install -d -m 700 /var/lib/blidos
 # Installs from before 0.5.1 set Android up from images in the ISO: mark them ready.
 if [ -e /var/lib/waydroid/waydroid.cfg ] && [ ! -e /var/lib/waydroid/blidos-android-ready ] \

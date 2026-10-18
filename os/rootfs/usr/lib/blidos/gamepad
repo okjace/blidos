@@ -22,12 +22,31 @@ from evdev import UInput, ecodes as e
 ALWAYS = "--always" in sys.argv
 KEYS = {e.BTN_SOUTH: e.KEY_ENTER, e.BTN_EAST: e.KEY_ESC, e.BTN_START: e.KEY_ENTER, e.BTN_SELECT: e.KEY_ESC,
         e.BTN_DPAD_UP: e.KEY_UP, e.BTN_DPAD_DOWN: e.KEY_DOWN, e.BTN_DPAD_LEFT: e.KEY_LEFT,
-        e.BTN_DPAD_RIGHT: e.KEY_RIGHT}
+        e.BTN_DPAD_RIGHT: e.KEY_RIGHT,
+        # Generic USB/Bluetooth pads that report joystick buttons: first button selects, second goes back.
+        e.BTN_TRIGGER: e.KEY_ENTER, e.BTN_THUMB: e.KEY_ESC}
+BUTTON_NAMES = {e.BTN_SOUTH: "A", e.BTN_EAST: "B", e.BTN_NORTH: "Y", e.BTN_WEST: "X", e.BTN_START: "Start",
+                e.BTN_SELECT: "Back/View", e.BTN_MODE: "Home", e.BTN_TL: "LB", e.BTN_TR: "RB",
+                e.BTN_TRIGGER: "1", e.BTN_THUMB: "2"}
+STATUS = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp",
+                      "blidos-gamepad-picker.json" if "--always" in sys.argv else "blidos-gamepad.json")
 HOME = e.KEY_F1  # the session's "go home" key (see /etc/blidos/sway.conf)
 REPEAT_DELAY, REPEAT_RATE = 0.40, 0.11
 
 NAME = "BlidOS controller remote"
 state = {"blidos_in_front": ALWAYS}
+status = {"running": True, "pid": os.getpid(), "pads": [], "last": "", "at": 0, "error": ""}
+
+
+def save_status(**changes):
+    """What Settings → Controllers shows: the controllers seen and the last button pressed."""
+    status.update(changes)
+    try:
+        with open(STATUS + ".tmp", "w") as f:
+            json.dump(status, f)
+        os.replace(STATUS + ".tmp", STATUS)
+    except OSError:
+        pass
 out = None  # the virtual remote (a keyboard) the presses come from
 
 
@@ -39,7 +58,8 @@ def tap(key):
 
 def is_gamepad(dev):
     caps = dev.capabilities().get(e.EV_KEY, [])
-    return dev.name != NAME and (e.BTN_SOUTH in caps or e.BTN_GAMEPAD in caps)
+    joystick = e.BTN_TRIGGER in caps and e.EV_ABS in dev.capabilities()
+    return dev.name != NAME and (e.BTN_SOUTH in caps or e.BTN_GAMEPAD in caps or joystick)
 
 
 def watch_focus():
@@ -65,6 +85,7 @@ def watch_focus():
                               stdout=subprocess.PIPE, text=True)
     for _ in events.stdout:
         update()
+    os._exit(0)  # sway is gone (signed out, or switching mode): this session's remote ends too
 
 
 class Pad:
@@ -94,6 +115,10 @@ class Pad:
         return e.KEY_UP if pos < 0 else e.KEY_DOWN if pos > 0 else 0
 
     def handle(self, ev):
+        if ev.type == e.EV_KEY and ev.value == 1:
+            save_status(last=BUTTON_NAMES.get(ev.code, f"button {ev.code}"), at=time.time())
+        elif ev.type == e.EV_ABS and ev.code in (e.ABS_HAT0X, e.ABS_HAT0Y) and ev.value:
+            save_status(last="D-pad", at=time.time())
         if ev.type == e.EV_KEY and ev.code == e.BTN_MODE and ev.value == 1:
             tap(HOME)  # the Xbox / PS / Home button: always home
             return
@@ -132,6 +157,7 @@ class Pad:
 def main():
     global out
     out = UInput({e.EV_KEY: sorted(set(KEYS.values()) | {HOME})}, name=NAME)
+    save_status(running=True, error="")
     if not ALWAYS:
         threading.Thread(target=watch_focus, daemon=True).start()
     pads = {}
@@ -145,6 +171,7 @@ def main():
                         dev = evdev.InputDevice(path)
                         if is_gamepad(dev):
                             pads[path] = Pad(dev)
+                            save_status(pads=sorted({p.dev.name for p in pads.values()}))
                         else:
                             dev.close()
                     except OSError:
@@ -158,6 +185,7 @@ def main():
                     pads[path].handle(ev)
             except OSError:  # unplugged or out of range
                 pads.pop(path).dev.close()
+                save_status(pads=sorted({p.dev.name for p in pads.values()}))
         for pad in pads.values():
             pad.repeat()
 
@@ -166,4 +194,8 @@ if __name__ == "__main__":
     try:
         main()
     except PermissionError:
+        save_status(running=False, error="No access to /dev/uinput or the controllers")
         sys.exit("gamepad: no access to /dev/uinput or the controllers (groups input)")
+    except Exception as ex:
+        save_status(running=False, error=f"{type(ex).__name__}: {ex}")
+        raise

@@ -18,6 +18,15 @@ Window {
     function toast(message) { toastBox.show(message) }
     // A full-screen "please wait" card, e.g. while Android finishes starting. busy("") hides it.
     function busy(title, detail) { busyCard.title = title; busyCard.detail = detail || "" }
+    // Leaving for the profile picker: a loading card first, which the screen keeps until
+    // "Who's watching?" appears (never a black screen in between).
+    function switchProfile() {
+        busy("Switching profile…")
+        switchTimer.start()
+    }
+    Timer { id: switchTimer; interval: 350; onTriggered: Api.call("switchProfile") }
+    function stackPop() { if (stack.depth > 1) stack.pop() }
+    function launchItem(item) { var home = stack.get(0); if (home && home.launch) home.launch(item, true) }
     function push(page, props) {
         var component = Qt.createComponent(Qt.resolvedUrl(page))
         if (component.status === Component.Error) { console.error(component.errorString()); return }

@@ -1,0 +1,10 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [{ "Name": "BlidOS" }],
+        "Description": "The BlidOS loading screen for Desktop mode",
+        "Id": "org.blidos.splash",
+        "License": "GPL-2.0+",
+        "Name": "BlidOS"
+    }
+}
