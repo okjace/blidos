@@ -58,9 +58,25 @@ Page {
             wrapMode: Text.WrapAnywhere; maximumLineCount: 14
         }
     }
+    Text {
+        visible: page.s.stage === "starting" && !!page.s.graphicsName
+        text: "Graphics: " + page.s.graphicsName
+        color: Theme.dim; font.family: Theme.font; font.pixelSize: Theme.px(15)
+    }
     Row {
         spacing: Theme.px(16)
         PillButton { text: "Restart Android"; onActivated: { Api.call("restartAndroid"); Window.window.toast("Restarting Android…") } }
+        // Stuck on the boot animation is usually graphics: try the next setting now instead of waiting.
+        PillButton {
+            visible: page.s.stage === "starting" && !!page.s.nextGraphics && Window.window.me && Window.window.me.owner
+            text: "Try " + page.s.nextGraphicsName + " graphics"
+            onActivated: {
+                var w = Window.window
+                w.busy("Switching to " + page.s.nextGraphicsName + " graphics…", "Android starts again. This takes about a minute.")
+                Api.call("androidGraphics", [page.s.nextGraphics], () => { w.busy(""); w.toast("Android is starting again") },
+                         e => { w.busy(""); w.toast(e) })
+            }
+        }
         PillButton { visible: Window.window.me && !Window.window.me.kids; text: "Android settings"; onActivated: Window.window.push("AndroidPage.qml") }
     }
 }

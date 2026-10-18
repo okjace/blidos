@@ -12,7 +12,7 @@ navigation: widget
 strings:
   productName: BlidOS
   shortProductName: BlidOS
-  version: 0.5.3
+  version: 0.5.4
   shortVersion: "0.5"
   versionedName: BlidOS 0.5
   shortVersionedName: BlidOS 0.5

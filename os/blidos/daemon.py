@@ -831,18 +831,30 @@ def _android_status():
         return {"stage": "running", "title": "Android is ready", "progress": 100, "detail": "", "lines": []}
     since = _starting_since.setdefault("session", time.time())
     try:
-        log = _waydroid_shell("logcat -d -t 14 -v brief 2>/dev/null", timeout=8).stdout.splitlines()
+        log = _waydroid_shell("logcat -d -t 400 -v brief 2>/dev/null", timeout=8).stdout.splitlines()
     except subprocess.TimeoutExpired:
         log = []
+    # The boot animation logs every loop; it says nothing about how far along Android is.
+    log = [l.strip() for l in log if l.strip() and not re.search(LOG_NOISE, l)]
     elapsed = int(time.time() - since)
+    mode = _graphics_mode()
+    nxt = FALLBACK.get(mode)
+    if nxt and elapsed > 60:
+        left = max(0, FALLBACK_AFTER - elapsed)
+        later = (f" If it's not up in {left // 60}:{left % 60:02d}, BlidOS switches to {GRAPHICS_NAMES[nxt]} graphics"
+                 " and starts it again." if left else f" Switching to {GRAPHICS_NAMES[nxt]} graphics…")
+    else:
+        later = ""
     return {"stage": "starting", "title": "Starting Android", "progress": None, "elapsed": elapsed,
-            "detail": "Android is booting. The first start of a profile takes the longest."
-                      + (" Still going: BlidOS tries other graphics settings after a few minutes." if elapsed > 120 else ""),
-            "lines": [l.strip() for l in log if l.strip()][-12:]}
+            "detail": "Android is booting. The first start of a profile takes the longest." + later,
+            "graphics": mode, "graphicsName": GRAPHICS_NAMES[mode], "nextGraphics": nxt or "",
+            "nextGraphicsName": GRAPHICS_NAMES.get(nxt, ""), "lines": log[-12:]}
 
 
 FALLBACK = {"auto": "compatible", "compatible": "software"}
-FALLBACK_AFTER = 360  # seconds an Android start may take before BlidOS tries other graphics settings
+FALLBACK_AFTER = 180  # seconds an Android start may take before BlidOS tries other graphics settings
+GRAPHICS_NAMES = {"auto": "Automatic", "compatible": "Compatible", "software": "Software"}
+LOG_NOISE = r"BootAnimation|libminijail|seccomp_policy|HidlServiceManagement.*(Trying again|Waited one second)"
 
 
 def _android_watchdog():
